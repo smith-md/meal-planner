@@ -1,0 +1,170 @@
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  padding: 25px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.modal-header h2 {
+  color: #333;
+  margin: 0;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  cursor: pointer;
+  color: #999;
+  transition: color 0.2s;
+}
+
+.close-btn:hover {
+  color: #333;
+}
+
+.search-input {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  margin-bottom: 15px;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.meals-list {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 15px;
+}
+
+.meal-option {
+  padding: 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.meal-option:hover {
+  background: #f9f9f9;
+  border-color: #667eea;
+  transform: translateX(5px);
+}
+
+.meal-name {
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.meal-tags {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.new-meal-btn {
+  width: 100%;
+  padding: 12px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.new-meal-btn:hover {
+  background: #5568d3;
+}
+
+.new-meal-form {
+  padding: 15px;
+  background: #f9f9f9;
+  border-radius: 8px;
+}
+
+.new-meal-form h3 {
+  color: #333;
+  margin-bottom: 15px;
+}
+
+.new-meal-form input,
+.new-meal-form textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.new-meal-form textarea {
+  min-height: 60px;
+  resize: vertical;
+}
+
+.form-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.form-buttons button {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.form-buttons button:first-child {
+  background: #667eea;
+  color: white;
+}
+
+.form-buttons button:first-child:hover {
+  background: #5568d3;
+}
+
+.form-buttons button:last-child {
+  background: #e0e0e0;
+  color: #333;
+}
+
+.form-buttons button:last-child:hover {
+  background: #d0d0d0;
+}

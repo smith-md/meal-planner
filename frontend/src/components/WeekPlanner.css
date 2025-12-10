@@ -1,0 +1,143 @@
+.week-planner {
+  background: white;
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.planner-header {
+  margin-bottom: 20px;
+}
+
+.planner-header h2 {
+  color: #333;
+  margin-bottom: 15px;
+}
+
+.stats {
+  display: flex;
+  gap: 20px;
+}
+
+.stat {
+  padding: 8px 16px;
+  background: #f0f0f0;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.stat.missing {
+  background: #ffe0e0;
+  color: #d63031;
+}
+
+.days-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 15px;
+}
+
+.day-card {
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 15px;
+  transition: all 0.3s;
+}
+
+.day-card.need {
+  background: linear-gradient(135deg, #d4f1d4 0%, #e8f8e8 100%);
+  border-color: #66bb6a;
+}
+
+.day-card.none {
+  background: linear-gradient(135deg, #ffd4d4 0%, #ffe8e8 100%);
+  border-color: #ef5350;
+}
+
+.day-card.neutral {
+  background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%);
+}
+
+.day-header {
+  margin-bottom: 10px;
+}
+
+.day-header h3 {
+  font-size: 1.1rem;
+  margin-bottom: 8px;
+  color: #333;
+}
+
+.state-toggle {
+  width: 100%;
+  padding: 6px;
+  font-size: 0.85rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.state-toggle:hover {
+  background: #f9f9f9;
+  transform: translateY(-1px);
+}
+
+.meals-list {
+  min-height: 60px;
+  margin-bottom: 10px;
+}
+
+.meal-item {
+  background: white;
+  padding: 8px;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.meal-item span {
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.meal-item button {
+  background: #ff4757;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+  transition: all 0.2s;
+}
+
+.meal-item button:hover {
+  background: #ff3838;
+  transform: scale(1.1);
+}
+
+.add-meal-btn {
+  width: 100%;
+  padding: 8px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.add-meal-btn:hover {
+  background: #5568d3;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
