@@ -1,30 +1,34 @@
+/* Mobile-first styles */
 .week-planner {
   background: white;
   border-radius: 12px;
-  padding: 25px;
+  padding: 1rem;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
 }
 
 .planner-header {
-  margin-bottom: 20px;
+  margin-bottom: 1.25rem;
 }
 
 .planner-header h2 {
   color: #333;
-  margin-bottom: 15px;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
 }
 
 .stats {
   display: flex;
-  gap: 20px;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .stat {
-  padding: 8px 16px;
+  padding: 0.625rem 1rem;
   background: #f0f0f0;
   border-radius: 8px;
   font-size: 0.9rem;
   font-weight: 500;
+  text-align: center;
 }
 
 .stat.missing {
@@ -32,16 +36,30 @@
   color: #d63031;
 }
 
+/* Days carousel - swipeable on mobile */
 .days-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 15px;
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  margin: 0 -1rem;
+  padding: 0.5rem 1rem;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+}
+
+.days-grid::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
 }
 
 .day-card {
+  flex: 0 0 85%;
+  scroll-snap-align: center;
   border: 2px solid #e0e0e0;
   border-radius: 10px;
-  padding: 15px;
+  padding: 1rem;
   transition: all 0.3s;
 }
 
@@ -60,40 +78,41 @@
 }
 
 .day-header {
-  margin-bottom: 10px;
+  margin-bottom: 0.75rem;
 }
 
 .day-header h3 {
-  font-size: 1.1rem;
-  margin-bottom: 8px;
+  font-size: 1.125rem;
+  margin-bottom: 0.5rem;
   color: #333;
 }
 
 .state-toggle {
   width: 100%;
-  padding: 6px;
-  font-size: 0.85rem;
+  min-height: 44px;
+  padding: 0.625rem;
+  font-size: 0.9375rem;
   border: 1px solid #ddd;
   border-radius: 6px;
   background: white;
   cursor: pointer;
   transition: all 0.2s;
+  touch-action: manipulation;
 }
 
-.state-toggle:hover {
-  background: #f9f9f9;
-  transform: translateY(-1px);
+.state-toggle:active {
+  transform: scale(0.98);
 }
 
 .meals-list {
   min-height: 60px;
-  margin-bottom: 10px;
+  margin-bottom: 0.75rem;
 }
 
 .meal-item {
   background: white;
-  padding: 8px;
-  margin-bottom: 6px;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
   border-radius: 6px;
   display: flex;
   justify-content: space-between;
@@ -102,8 +121,10 @@
 }
 
 .meal-item span {
-  font-size: 0.9rem;
+  font-size: 0.9375rem;
   color: #333;
+  flex: 1;
+  word-break: break-word;
 }
 
 .meal-item button {
@@ -111,33 +132,110 @@
   color: white;
   border: none;
   border-radius: 50%;
-  width: 22px;
-  height: 22px;
+  min-width: 32px;
+  min-height: 32px;
+  width: 32px;
+  height: 32px;
   cursor: pointer;
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   line-height: 1;
   transition: all 0.2s;
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+  touch-action: manipulation;
 }
 
-.meal-item button:hover {
-  background: #ff3838;
-  transform: scale(1.1);
+.meal-item button:active {
+  transform: scale(0.95);
 }
 
 .add-meal-btn {
   width: 100%;
-  padding: 8px;
+  min-height: 44px;
+  padding: 0.75rem;
   background: #667eea;
   color: white;
   border: none;
   border-radius: 6px;
   cursor: pointer;
   font-weight: 500;
+  font-size: 0.9375rem;
   transition: all 0.2s;
+  touch-action: manipulation;
 }
 
-.add-meal-btn:hover {
-  background: #5568d3;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+.add-meal-btn:active {
+  transform: scale(0.98);
+}
+
+/* Tablet - 2 columns grid */
+@media (min-width: 768px) {
+  .week-planner {
+    padding: 1.5rem;
+  }
+
+  .planner-header h2 {
+    font-size: 1.75rem;
+  }
+
+  .stats {
+    flex-direction: row;
+    gap: 1rem;
+  }
+
+  .stat {
+    flex: 1;
+  }
+
+  /* Switch to grid layout on tablet */
+  .days-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    overflow-x: visible;
+    scroll-snap-type: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .day-card {
+    flex: none;
+    scroll-snap-align: none;
+  }
+
+  .state-toggle:hover {
+    background: #f9f9f9;
+    transform: translateY(-1px);
+  }
+
+  .meal-item button:hover {
+    background: #ff3838;
+    transform: scale(1.1);
+  }
+
+  .add-meal-btn:hover {
+    background: #5568d3;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+  }
+}
+
+/* Desktop - up to 4 columns for better use of space */
+@media (min-width: 1024px) {
+  .week-planner {
+    padding: 1.5rem;
+  }
+
+  .planner-header {
+    margin-bottom: 1.5rem;
+  }
+
+  .planner-header h2 {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+  }
+
+  .days-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+  }
 }

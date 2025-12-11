@@ -63,3 +63,14 @@ class DayUpdate(BaseModel):
 
 class DayMealAdd(BaseModel):
     meal_id: int
+
+
+class RecipeImportURL(BaseModel):
+    url: str
+
+
+class RecipeImportResponse(BaseModel):
+    name: str
+    notes: Optional[str] = None
+    tags: Optional[str] = None
+    ingredients: Optional[str] = None

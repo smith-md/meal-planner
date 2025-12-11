@@ -51,7 +51,7 @@ def create_week_plan(db: Session, start_date: date):
             week_plan_id=week_plan.id,
             date=start_date + timedelta(days=i),
             day_name=day_names[i],
-            state="neutral"
+            state="need"
         )
         db.add(day)
 

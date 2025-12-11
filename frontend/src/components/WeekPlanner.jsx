@@ -15,20 +15,30 @@ function WeekPlanner() {
   }, []);
 
   const loadWeekPlan = async () => {
-    const plan = await getCurrentWeekPlan();
-    setWeekPlan(plan);
+    try {
+      console.log('Loading week plan...');
+      const plan = await getCurrentWeekPlan();
+      console.log('Week plan loaded:', plan);
+      setWeekPlan(plan);
+    } catch (error) {
+      console.error('Error loading week plan:', error);
+    }
   };
 
   const loadMeals = async () => {
-    const mealsData = await fetchMeals();
-    setMeals(mealsData);
+    try {
+      console.log('Loading meals...');
+      const mealsData = await fetchMeals();
+      console.log('Meals loaded:', mealsData);
+      setMeals(mealsData);
+    } catch (error) {
+      console.error('Error loading meals:', error);
+    }
   };
 
   const cycleDayState = async (day) => {
-    const stateOrder = ['neutral', 'need', 'none'];
-    const currentIndex = stateOrder.indexOf(day.state);
-    const nextState = stateOrder[(currentIndex + 1) % stateOrder.length];
-    
+    const nextState = day.state === 'need' ? 'none' : 'need';
+
     await updateDayState(day.id, nextState);
     await loadWeekPlan();
   };
@@ -84,14 +94,13 @@ function WeekPlanner() {
           <div key={day.id} className={`day-card ${day.state}`}>
             <div className="day-header">
               <h3>{day.day_name}</h3>
-              <button 
+              <button
                 className="state-toggle"
                 onClick={() => cycleDayState(day)}
-                title="Click to toggle: Need Meal / No Meal / Neutral"
+                title="Click to toggle: Need Meal / No Meal"
               >
                 {day.state === 'need' && 'Need Meal'}
                 {day.state === 'none' && 'No Meal'}
-                {day.state === 'neutral' && 'Neutral'}
               </button>
             </div>
             

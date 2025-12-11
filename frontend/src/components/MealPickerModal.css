@@ -1,3 +1,4 @@
+/* Mobile-first styles */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -6,54 +7,66 @@
   bottom: 0;
   background: rgba(0, 0, 0, 0.5);
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   z-index: 1000;
+  padding: 0;
 }
 
 .modal-content {
   background: white;
-  border-radius: 12px;
-  padding: 25px;
-  max-width: 500px;
-  width: 90%;
-  max-height: 80vh;
+  border-radius: 12px 12px 0 0;
+  padding: 1.25rem;
+  width: 100%;
+  max-width: 100%;
+  max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 1.25rem;
 }
 
 .modal-header h2 {
   color: #333;
   margin: 0;
+  font-size: 1.25rem;
 }
 
 .close-btn {
   background: none;
   border: none;
+  min-width: 44px;
+  min-height: 44px;
   font-size: 2rem;
   cursor: pointer;
   color: #999;
   transition: color 0.2s;
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+  touch-action: manipulation;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.close-btn:hover {
+.close-btn:active {
   color: #333;
 }
 
 .search-input {
   width: 100%;
-  padding: 12px;
+  min-height: 44px;
+  padding: 0.75rem;
   border: 2px solid #e0e0e0;
   border-radius: 8px;
   font-size: 1rem;
-  margin-bottom: 15px;
+  margin-bottom: 1rem;
 }
 
 .search-input:focus {
@@ -64,91 +77,104 @@
 .meals-list {
   max-height: 300px;
   overflow-y: auto;
-  margin-bottom: 15px;
+  margin-bottom: 1rem;
 }
 
 .meal-option {
-  padding: 12px;
-  border: 1px solid #e0e0e0;
+  padding: 0.875rem;
+  border: 2px solid #e0e0e0;
   border-radius: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 0.625rem;
   cursor: pointer;
   transition: all 0.2s;
+  min-height: 44px;
+  touch-action: manipulation;
 }
 
-.meal-option:hover {
+.meal-option:active {
   background: #f9f9f9;
   border-color: #667eea;
-  transform: translateX(5px);
+  transform: scale(0.98);
 }
 
 .meal-name {
   font-weight: 500;
   color: #333;
-  margin-bottom: 4px;
+  margin-bottom: 0.25rem;
+  font-size: 0.9375rem;
+  word-break: break-word;
 }
 
 .meal-tags {
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   color: #666;
 }
 
 .new-meal-btn {
   width: 100%;
-  padding: 12px;
+  min-height: 44px;
+  padding: 0.875rem;
   background: #667eea;
   color: white;
   border: none;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
+  font-size: 0.9375rem;
   transition: all 0.2s;
+  touch-action: manipulation;
 }
 
-.new-meal-btn:hover {
-  background: #5568d3;
+.new-meal-btn:active {
+  transform: scale(0.98);
 }
 
 .new-meal-form {
-  padding: 15px;
+  padding: 1rem;
   background: #f9f9f9;
   border-radius: 8px;
 }
 
 .new-meal-form h3 {
   color: #333;
-  margin-bottom: 15px;
+  margin-bottom: 1rem;
+  font-size: 1.125rem;
 }
 
 .new-meal-form input,
 .new-meal-form textarea {
   width: 100%;
-  padding: 10px;
+  min-height: 44px;
+  padding: 0.75rem;
   border: 1px solid #e0e0e0;
   border-radius: 6px;
-  margin-bottom: 10px;
+  margin-bottom: 0.75rem;
   font-size: 1rem;
   font-family: inherit;
 }
 
 .new-meal-form textarea {
-  min-height: 60px;
+  min-height: 80px;
   resize: vertical;
 }
 
 .form-buttons {
   display: flex;
-  gap: 10px;
+  flex-direction: column;
+  gap: 0.625rem;
 }
 
 .form-buttons button {
-  flex: 1;
-  padding: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.75rem;
   border: none;
   border-radius: 6px;
   cursor: pointer;
   font-weight: 500;
+  font-size: 0.9375rem;
   transition: all 0.2s;
+  touch-action: manipulation;
 }
 
 .form-buttons button:first-child {
@@ -156,8 +182,8 @@
   color: white;
 }
 
-.form-buttons button:first-child:hover {
-  background: #5568d3;
+.form-buttons button:first-child:active {
+  transform: scale(0.98);
 }
 
 .form-buttons button:last-child {
@@ -165,6 +191,66 @@
   color: #333;
 }
 
-.form-buttons button:last-child:hover {
-  background: #d0d0d0;
+.form-buttons button:last-child:active {
+  transform: scale(0.98);
+}
+
+/* Tablet - centered modal */
+@media (min-width: 768px) {
+  .modal-overlay {
+    align-items: center;
+    padding: 1rem;
+  }
+
+  .modal-content {
+    border-radius: 12px;
+    max-width: 500px;
+    max-height: 80vh;
+    padding: 1.5rem;
+  }
+
+  .modal-header h2 {
+    font-size: 1.5rem;
+  }
+
+  .close-btn:hover {
+    color: #333;
+  }
+
+  .meal-option:hover {
+    background: #f9f9f9;
+    border-color: #667eea;
+    transform: translateX(5px);
+  }
+
+  .new-meal-btn:hover {
+    background: #5568d3;
+  }
+
+  .new-meal-form {
+    padding: 1.25rem;
+  }
+
+  .form-buttons {
+    flex-direction: row;
+  }
+
+  .form-buttons button:first-child:hover {
+    background: #5568d3;
+  }
+
+  .form-buttons button:last-child:hover {
+    background: #d0d0d0;
+  }
+}
+
+/* Desktop */
+@media (min-width: 1024px) {
+  .modal-content {
+    max-width: 600px;
+  }
+
+  .modal-header h2 {
+    font-size: 1.75rem;
+  }
 }
