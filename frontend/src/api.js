@@ -31,8 +31,8 @@ export async function updateDayState(dayId, state) {
   return response.json();
 }
 
-export async function addMealToDay(dayId, mealId) {
-  const response = await fetch(`${API_BASE_URL}/week-plans/days/${dayId}/meals`, {
+export async function addMealToWeek(weekPlanId, mealId) {
+  const response = await fetch(`${API_BASE_URL}/week-plans/${weekPlanId}/meals`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ meal_id: mealId })
@@ -40,9 +40,14 @@ export async function addMealToDay(dayId, mealId) {
   return response.json();
 }
 
-export async function removeMealFromDay(dayId, mealId) {
-  const response = await fetch(`${API_BASE_URL}/week-plans/days/${dayId}/meals/${mealId}`, {
+export async function removeMealFromWeek(weekPlanId, mealId) {
+  const response = await fetch(`${API_BASE_URL}/week-plans/${weekPlanId}/meals/${mealId}`, {
     method: 'DELETE'
   });
+  return response.json();
+}
+
+export async function getAggregatedShoppingList(weekPlanId) {
+  const response = await fetch(`${API_BASE_URL}/week-plans/${weekPlanId}/shopping-list`);
   return response.json();
 }

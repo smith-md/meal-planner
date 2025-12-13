@@ -24,7 +24,7 @@ class Meal(MealBase):
 class DayBase(BaseModel):
     date: date
     day_name: str
-    state: str = "neutral"
+    state: str = "need"
 
 
 class DayCreate(DayBase):
@@ -34,7 +34,6 @@ class DayCreate(DayBase):
 class Day(DayBase):
     id: int
     week_plan_id: int
-    meals: List[Meal] = []
 
     class Config:
         from_attributes = True
@@ -52,6 +51,7 @@ class WeekPlanCreate(WeekPlanBase):
 class WeekPlan(WeekPlanBase):
     id: int
     days: List[Day] = []
+    meals: List[Meal] = []
 
     class Config:
         from_attributes = True
@@ -61,7 +61,7 @@ class DayUpdate(BaseModel):
     state: Optional[str] = None
 
 
-class DayMealAdd(BaseModel):
+class WeekMealAdd(BaseModel):
     meal_id: int
 
 

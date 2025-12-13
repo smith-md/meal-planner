@@ -7,7 +7,7 @@
 }
 
 .planner-header {
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
 }
 
 .planner-header h2 {
@@ -31,9 +31,21 @@
   text-align: center;
 }
 
-.stat.missing {
-  background: #ffe0e0;
-  color: #d63031;
+.stat.warning {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffc107;
+}
+
+/* Days Section - Simplified */
+.days-section {
+  margin-bottom: 2rem;
+}
+
+.days-section h3 {
+  color: #333;
+  font-size: 1.125rem;
+  margin-bottom: 1rem;
 }
 
 /* Days carousel - swipeable on mobile */
@@ -54,36 +66,31 @@
   display: none; /* Chrome, Safari */
 }
 
-.day-card {
+.day-card.simple {
   flex: 0 0 85%;
   scroll-snap-align: center;
   border: 2px solid #e0e0e0;
   border-radius: 10px;
   padding: 1rem;
+  text-align: center;
+  background: white;
   transition: all 0.3s;
 }
 
-.day-card.need {
+.day-card.simple.need {
   background: linear-gradient(135deg, #d4f1d4 0%, #e8f8e8 100%);
   border-color: #66bb6a;
 }
 
-.day-card.none {
-  background: linear-gradient(135deg, #ffd4d4 0%, #ffe8e8 100%);
-  border-color: #ef5350;
-}
-
-.day-card.neutral {
+.day-card.simple.none {
   background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%);
+  border-color: #ddd;
+  opacity: 0.7;
 }
 
-.day-header {
-  margin-bottom: 0.75rem;
-}
-
-.day-header h3 {
-  font-size: 1.125rem;
-  margin-bottom: 0.5rem;
+.day-card.simple h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 1rem;
   color: #333;
 }
 
@@ -92,42 +99,124 @@
   min-height: 44px;
   padding: 0.625rem;
   font-size: 0.9375rem;
-  border: 1px solid #ddd;
+  border: none;
   border-radius: 6px;
-  background: white;
   cursor: pointer;
   transition: all 0.2s;
   touch-action: manipulation;
+  font-weight: 500;
+}
+
+.state-toggle.need {
+  background: #4caf50;
+  color: white;
+}
+
+.state-toggle.none {
+  background: #e0e0e0;
+  color: #666;
 }
 
 .state-toggle:active {
   transform: scale(0.98);
 }
 
-.meals-list {
-  min-height: 60px;
-  margin-bottom: 0.75rem;
+/* Meals Section - NEW */
+.meals-section {
+  background: #f9f9f9;
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-top: 2rem;
 }
 
-.meal-item {
-  background: white;
-  padding: 0.75rem;
-  margin-bottom: 0.5rem;
-  border-radius: 6px;
+.meals-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.meals-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 1.125rem;
+}
+
+.meals-header .add-meal-btn {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.75rem 1.25rem;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.9375rem;
+  transition: all 0.2s;
+  touch-action: manipulation;
+}
+
+.meals-header .add-meal-btn:active {
+  transform: scale(0.98);
+}
+
+.week-meals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.no-meals {
+  text-align: center;
+  color: #999;
+  padding: 2rem 1rem;
+  font-style: italic;
+  font-size: 0.9375rem;
+}
+
+.week-meal-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  transition: all 0.2s;
 }
 
-.meal-item span {
-  font-size: 0.9375rem;
-  color: #333;
+.meal-info {
   flex: 1;
+  min-width: 0;
+}
+
+.meal-info h4 {
+  margin: 0 0 0.5rem 0;
+  color: #333;
+  font-size: 1rem;
   word-break: break-word;
 }
 
-.meal-item button {
+.meal-tags {
+  display: inline-block;
+  font-size: 0.8125rem;
+  color: #666;
+  background: #e3f2fd;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  margin-right: 0.5rem;
+}
+
+.meal-notes {
+  margin: 0.5rem 0 0 0;
+  font-size: 0.875rem;
+  color: #666;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.remove-btn {
   background: #ff4757;
   color: white;
   border: none;
@@ -141,31 +230,12 @@
   line-height: 1;
   transition: all 0.2s;
   flex-shrink: 0;
-  margin-left: 0.5rem;
+  margin-left: 0.75rem;
   touch-action: manipulation;
 }
 
-.meal-item button:active {
+.remove-btn:active {
   transform: scale(0.95);
-}
-
-.add-meal-btn {
-  width: 100%;
-  min-height: 44px;
-  padding: 0.75rem;
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 500;
-  font-size: 0.9375rem;
-  transition: all 0.2s;
-  touch-action: manipulation;
-}
-
-.add-meal-btn:active {
-  transform: scale(0.98);
 }
 
 /* Tablet - 2 columns grid */
@@ -190,43 +260,62 @@
   /* Switch to grid layout on tablet */
   .days-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     overflow-x: visible;
     scroll-snap-type: none;
     margin: 0;
     padding: 0;
   }
 
-  .day-card {
+  .day-card.simple {
     flex: none;
     scroll-snap-align: none;
   }
 
   .state-toggle:hover {
-    background: #f9f9f9;
+    opacity: 0.9;
     transform: translateY(-1px);
   }
 
-  .meal-item button:hover {
-    background: #ff3838;
-    transform: scale(1.1);
+  .meals-section {
+    padding: 1.5rem;
   }
 
-  .add-meal-btn:hover {
+  .meals-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .meals-header .add-meal-btn {
+    width: auto;
+  }
+
+  .meals-header .add-meal-btn:hover {
     background: #5568d3;
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
   }
+
+  .week-meal-item:hover {
+    border-color: #667eea;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .remove-btn:hover {
+    background: #ff3838;
+    transform: scale(1.1);
+  }
 }
 
-/* Desktop - up to 4 columns for better use of space */
+/* Desktop - up to 7 columns for week view */
 @media (min-width: 1024px) {
   .week-planner {
     padding: 1.5rem;
   }
 
   .planner-header {
-    margin-bottom: 1.5rem;
+    margin-bottom: 2rem;
   }
 
   .planner-header h2 {
@@ -235,7 +324,15 @@
   }
 
   .days-grid {
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(7, 1fr);
     gap: 1rem;
+  }
+
+  .meals-section {
+    margin-top: 2.5rem;
+  }
+
+  .meals-header h3 {
+    font-size: 1.25rem;
   }
 }

@@ -57,20 +57,26 @@ def update_day(day_id: int, day_update: schemas.DayUpdate, db: Session = Depends
     return day
 
 
-@app.post("/week-plans/days/{day_id}/meals", response_model=schemas.Day)
-def add_meal_to_day(day_id: int, meal_data: schemas.DayMealAdd, db: Session = Depends(get_db)):
-    day = crud.add_meal_to_day(db, day_id, meal_data.meal_id)
-    if not day:
-        raise HTTPException(status_code=404, detail="Day or Meal not found")
-    return day
+@app.post("/week-plans/{week_plan_id}/meals", response_model=schemas.WeekPlan)
+def add_meal_to_week(week_plan_id: int, meal_data: schemas.WeekMealAdd, db: Session = Depends(get_db)):
+    week_plan = crud.add_meal_to_week(db, week_plan_id, meal_data.meal_id)
+    if not week_plan:
+        raise HTTPException(status_code=404, detail="Week plan or Meal not found")
+    return week_plan
 
 
-@app.delete("/week-plans/days/{day_id}/meals/{meal_id}", response_model=schemas.Day)
-def remove_meal_from_day(day_id: int, meal_id: int, db: Session = Depends(get_db)):
-    day = crud.remove_meal_from_day(db, day_id, meal_id)
-    if not day:
-        raise HTTPException(status_code=404, detail="Day or Meal not found")
-    return day
+@app.delete("/week-plans/{week_plan_id}/meals/{meal_id}", response_model=schemas.WeekPlan)
+def remove_meal_from_week(week_plan_id: int, meal_id: int, db: Session = Depends(get_db)):
+    week_plan = crud.remove_meal_from_week(db, week_plan_id, meal_id)
+    if not week_plan:
+        raise HTTPException(status_code=404, detail="Week plan or Meal not found")
+    return week_plan
+
+
+@app.get("/week-plans/{week_plan_id}/shopping-list")
+def get_shopping_list(week_plan_id: int, db: Session = Depends(get_db)):
+    """Get aggregated shopping list with smart quantity combining."""
+    return crud.get_aggregated_shopping_list(db, week_plan_id)
 
 
 @app.post("/import-recipe", response_model=schemas.RecipeImportResponse)
