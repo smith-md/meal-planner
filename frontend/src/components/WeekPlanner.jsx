@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react';
 import { getCurrentWeekPlan, updateDayState, addMealToWeek, removeMealFromWeek, fetchMeals } from '../api';
 import MealPickerModal from './MealPickerModal';
+import MealPairings from './MealPairings';
 import './WeekPlanner.css';
 
 function WeekPlanner() {
   const [weekPlan, setWeekPlan] = useState(null);
   const [showMealPicker, setShowMealPicker] = useState(false);
   const [meals, setMeals] = useState([]);
+  const [nextWeek, setNextWeek] = useState(false);
+  const [error, setError] = useState('');
+  const [pairingSource, setPairingSource] = useState('');
 
   useEffect(() => {
     loadWeekPlan();
@@ -16,11 +20,12 @@ function WeekPlanner() {
   const loadWeekPlan = async () => {
     try {
       console.log('Loading week plan...');
-      const plan = await getCurrentWeekPlan();
+      const plan = await getCurrentWeekPlan(nextWeek ? weekPlan.start_date : undefined);
       console.log('Week plan loaded:', plan);
       setWeekPlan(plan);
     } catch (error) {
       console.error('Error loading week plan:', error);
+      setError('Could not load the week plan.');
     }
   };
 
@@ -69,7 +74,22 @@ function WeekPlanner() {
     };
   };
 
-  if (!weekPlan) return <div>Loading...</div>;
+  const switchWeek = async () => {
+    setError('');
+    try {
+      const current = await getCurrentWeekPlan();
+      const nextStart = new Date(`${current.end_date}T00:00:00Z`);
+      nextStart.setUTCDate(nextStart.getUTCDate() + 1);
+      const plan = nextWeek ? current : await getCurrentWeekPlan(nextStart.toISOString().slice(0, 10));
+      setPairingSource('');
+      setWeekPlan(plan);
+      setNextWeek(!nextWeek);
+    } catch (error) {
+      setError(error.message);
+    }
+  };
+
+  if (!weekPlan) return <div>{error || 'Loading...'}</div>;
 
   const stats = getStats();
 
@@ -77,7 +97,9 @@ function WeekPlanner() {
     <div className="week-planner">
       {/* Stats Section */}
       <div className="planner-header">
-        <h2>Week Planner</h2>
+        <h2>{nextWeek ? 'Next Week' : 'Week Planner'}</h2>
+        <button onClick={switchWeek}>{nextWeek ? 'View this week' : 'View next week'}</button>
+        {error && <p role="alert">{error}</p>}
         <div className="stats">
           <span className="stat">{stats.daysNeed} days need meals</span>
           <span className="stat">{stats.mealsAdded} meals added</span>
@@ -109,7 +131,7 @@ function WeekPlanner() {
       {/* Meals Section - NEW */}
       <div className="meals-section">
         <div className="meals-header">
-          <h3>Meals for This Week</h3>
+          <h3>Meals for {nextWeek ? 'Next' : 'This'} Week</h3>
           <button
             className="add-meal-btn"
             onClick={() => setShowMealPicker(true)}
@@ -128,6 +150,7 @@ function WeekPlanner() {
                   <h4>{meal.name}</h4>
                   {meal.tags && <span className="meal-tags">{meal.tags}</span>}
                   {meal.notes && <p className="meal-notes">{meal.notes}</p>}
+                  <a href="#pairing-heading" onClick={() => setPairingSource(String(meal.id))}>Find a meal for leftover ingredients</a>
                 </div>
                 <button
                   className="remove-btn"
@@ -150,6 +173,15 @@ function WeekPlanner() {
           onMealCreated={loadMeals}
         />
       )}
+
+      <MealPairings key={weekPlan.id} week={weekPlan} selectedSource={pairingSource}
+        onSelectSource={setPairingSource} nextWeek={nextWeek} onAddMeal={async (mealId, next) => {
+        const nextStart = new Date(`${weekPlan.end_date}T00:00:00Z`);
+        nextStart.setUTCDate(nextStart.getUTCDate() + 1);
+        const target = next ? await getCurrentWeekPlan(nextStart.toISOString().slice(0, 10)) : weekPlan;
+        const updated = await addMealToWeek(target.id, mealId);
+        if (!next) setWeekPlan(updated);
+      }} />
     </div>
   );
 }
