@@ -9,7 +9,8 @@ function MealPickerModal({ meals, onSelect, onClose, onMealCreated }) {
     name: '',
     notes: '',
     tags: '',
-    ingredients: ''
+    ingredients: '',
+    yield_servings: ''
   });
 
   const filteredMeals = meals.filter(meal =>
@@ -20,8 +21,11 @@ function MealPickerModal({ meals, onSelect, onClose, onMealCreated }) {
 
   const handleCreateMeal = async () => {
     if (newMeal.name.trim()) {
-      await createMeal(newMeal);
-      setNewMeal({ name: '', notes: '', tags: '', ingredients: '' });
+      await createMeal({
+        ...newMeal,
+        yield_servings: newMeal.yield_servings === '' ? null : Number(newMeal.yield_servings)
+      });
+      setNewMeal({ name: '', notes: '', tags: '', ingredients: '', yield_servings: '' });
       setShowNewMealForm(false);
       onMealCreated();
     }
@@ -77,6 +81,16 @@ function MealPickerModal({ meals, onSelect, onClose, onMealCreated }) {
               placeholder="Tags (e.g., vegetarian, quick)"
               value={newMeal.tags}
               onChange={(e) => setNewMeal({...newMeal, tags: e.target.value})}
+            />
+            <input
+              type="number"
+              min="1"
+              max="99"
+              step="1"
+              placeholder="Servings this recipe makes"
+              aria-label="Servings this recipe makes"
+              value={newMeal.yield_servings}
+              onChange={(e) => setNewMeal({...newMeal, yield_servings: e.target.value})}
             />
             <textarea
               placeholder="Notes"

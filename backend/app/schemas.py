@@ -8,6 +8,7 @@ class MealBase(BaseModel):
     notes: Optional[str] = None
     tags: Optional[str] = None
     ingredients: Optional[str] = None
+    yield_servings: Optional[int] = Field(None, ge=1, le=99)
 
 
 class MealCreate(MealBase):
@@ -48,10 +49,19 @@ class WeekPlanCreate(WeekPlanBase):
     pass
 
 
+class WeekMealServings(BaseModel):
+    meal_id: int
+    servings: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
 class WeekPlan(WeekPlanBase):
     id: int
     days: List[Day] = []
     meals: List[Meal] = []
+    meal_servings: List[WeekMealServings] = []
 
     class Config:
         from_attributes = True
@@ -63,6 +73,15 @@ class DayUpdate(BaseModel):
 
 class WeekMealAdd(BaseModel):
     meal_id: int
+    servings: Optional[int] = Field(None, ge=1, le=99)
+
+
+class WeekMealUpdate(BaseModel):
+    servings: int = Field(ge=1, le=99)
+
+
+class MealYieldUpdate(BaseModel):
+    yield_servings: Optional[int] = Field(None, ge=1, le=99)
 
 
 class PairingIngredientCreate(BaseModel):
@@ -75,6 +94,7 @@ class PairingSuggestion(BaseModel):
     name: str
     uses: str
     extra: str
+    needs_more: bool = False
 
 
 class PairingIngredient(BaseModel):
@@ -83,6 +103,8 @@ class PairingIngredient(BaseModel):
     source: Optional[str]
     carried: bool
     remaining: str
+    needs_more: bool = False
+    shortfall: str = ""
     current: List[PairingSuggestion]
     next_week: List[PairingSuggestion]
 
@@ -96,3 +118,4 @@ class RecipeImportResponse(BaseModel):
     notes: Optional[str] = None
     tags: Optional[str] = None
     ingredients: Optional[str] = None
+    yield_servings: Optional[int] = None

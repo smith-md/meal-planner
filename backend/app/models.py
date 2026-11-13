@@ -1,16 +1,18 @@
-from sqlalchemy import Column, Integer, String, Date, ForeignKey, Table
+from sqlalchemy import Column, Integer, String, Date, ForeignKey
 from sqlalchemy.orm import relationship
 from .database import Base
 
 
-# Association table for many-to-many relationship between WeekPlan and Meal
-week_meal_association = Table(
-    'week_meals',
-    Base.metadata,
-    Column('id', Integer, primary_key=True),
-    Column('week_plan_id', Integer, ForeignKey('week_plans.id')),
-    Column('meal_id', Integer, ForeignKey('meals.id'))
-)
+class WeekMeal(Base):
+    """A meal planned in a week, with the number of servings planned."""
+    __tablename__ = "week_meals"
+
+    id = Column(Integer, primary_key=True)
+    week_plan_id = Column(Integer, ForeignKey("week_plans.id"))
+    meal_id = Column(Integer, ForeignKey("meals.id"))
+    servings = Column(Integer, nullable=True)
+
+    meal = relationship("Meal")
 
 
 class Meal(Base):
@@ -21,8 +23,9 @@ class Meal(Base):
     notes = Column(String, nullable=True)
     tags = Column(String, nullable=True)
     ingredients = Column(String, nullable=True)
+    yield_servings = Column(Integer, nullable=True)
 
-    week_plans = relationship("WeekPlan", secondary=week_meal_association, back_populates="meals")
+    week_plans = relationship("WeekPlan", secondary="week_meals", back_populates="meals", viewonly=True)
 
 
 class WeekPlan(Base):
@@ -33,7 +36,9 @@ class WeekPlan(Base):
     end_date = Column(Date)
 
     days = relationship("Day", back_populates="week_plan", cascade="all, delete-orphan")
-    meals = relationship("Meal", secondary=week_meal_association, back_populates="week_plans")
+    # Read-only views; writes go through WeekMeal rows (see crud).
+    meals = relationship("Meal", secondary="week_meals", back_populates="week_plans", viewonly=True)
+    meal_servings = relationship("WeekMeal", viewonly=True, order_by="WeekMeal.id")
 
 
 class Day(Base):

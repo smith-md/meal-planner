@@ -1,6 +1,50 @@
 import { useState, useEffect } from 'react';
-import { fetchMeals, createMeal } from '../api';
+import { fetchMeals, createMeal, updateMealYield } from '../api';
 import './MealsLibrary.css';
+
+const EMPTY_FORM = { name: '', notes: '', tags: '', ingredients: '', yield_servings: '' };
+
+function YieldControl({ meal, onSaved }) {
+  const [value, setValue] = useState(meal.yield_servings ?? '');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const unchanged = String(value) === String(meal.yield_servings ?? '');
+
+  const save = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      await updateMealYield(meal.id, value === '' ? null : Number(value));
+      await onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="meal-yield">
+      <label>
+        Serves{' '}
+        <input
+          type="number"
+          min="1"
+          max="99"
+          step="1"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          aria-label={`Servings ${meal.name} makes`}
+        />
+      </label>
+      <button type="button" onClick={save} disabled={saving || unchanged}>Save</button>
+      {meal.yield_servings == null && (
+        <p className="yield-note">Yield not set. Quantities are used as written.</p>
+      )}
+      {error && <p role="alert" className="yield-error">{error}</p>}
+    </div>
+  );
+}
 
 function MealsLibrary() {
   const [meals, setMeals] = useState([]);
@@ -12,12 +56,7 @@ function MealsLibrary() {
   const [importing, setImporting] = useState(false);
   const [imageFile, setImageFile] = useState(null);
   const [editingMeal, setEditingMeal] = useState(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    notes: '',
-    tags: '',
-    ingredients: ''
-  });
+  const [formData, setFormData] = useState(EMPTY_FORM);
 
   useEffect(() => {
     loadMeals();
@@ -35,8 +74,11 @@ function MealsLibrary() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (formData.name.trim()) {
-      await createMeal(formData);
-      setFormData({ name: '', notes: '', tags: '', ingredients: '' });
+      await createMeal({
+        ...formData,
+        yield_servings: formData.yield_servings === '' ? null : Number(formData.yield_servings)
+      });
+      setFormData(EMPTY_FORM);
       setShowNewMealForm(false);
       await loadMeals();
     }
@@ -60,7 +102,8 @@ function MealsLibrary() {
           name: recipeData.name || '',
           notes: recipeData.notes || '',
           tags: recipeData.tags || '',
-          ingredients: recipeData.ingredients || ''
+          ingredients: recipeData.ingredients || '',
+          yield_servings: recipeData.yield_servings ?? ''
         });
         setImportUrl('');
         setShowImportForm(false);
@@ -96,7 +139,8 @@ function MealsLibrary() {
           name: recipeData.name || '',
           notes: recipeData.notes || '',
           tags: recipeData.tags || '',
-          ingredients: recipeData.ingredients || ''
+          ingredients: recipeData.ingredients || '',
+          yield_servings: recipeData.yield_servings ?? ''
         });
         setImageFile(null);
         setShowImageImportForm(false);
@@ -217,6 +261,18 @@ function MealsLibrary() {
             value={formData.tags}
             onChange={(e) => setFormData({...formData, tags: e.target.value})}
           />
+          <label className="yield-field">
+            Servings this recipe makes
+            <input
+              type="number"
+              min="1"
+              max="99"
+              step="1"
+              placeholder="e.g., 4"
+              value={formData.yield_servings}
+              onChange={(e) => setFormData({...formData, yield_servings: e.target.value})}
+            />
+          </label>
           <textarea
             placeholder="Notes"
             value={formData.notes}
@@ -248,6 +304,7 @@ function MealsLibrary() {
             <div className="meal-card-header">
               <h3>{meal.name}</h3>
             </div>
+            <YieldControl key={`${meal.id}-${meal.yield_servings ?? ''}`} meal={meal} onSaved={loadMeals} />
             {meal.tags && (
               <div className="meal-tags">
                 <strong>Tags:</strong> {meal.tags}
