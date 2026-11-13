@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from datetime import date
+from pydantic import BaseModel, Field, field_validator
+from datetime import date, datetime
 from typing import List, Literal, Optional
 
 
@@ -57,11 +57,28 @@ class WeekMealServings(BaseModel):
         from_attributes = True
 
 
+class WeekMealSchedule(BaseModel):
+    meal_id: int
+    day_id: Optional[int] = None
+    status: str = "planned"
+    cooked_servings: Optional[int] = None
+    cooked_at: Optional[datetime] = None
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def _null_is_planned(cls, value):
+        return value or "planned"
+
+    class Config:
+        from_attributes = True
+
+
 class WeekPlan(WeekPlanBase):
     id: int
     days: List[Day] = []
     meals: List[Meal] = []
     meal_servings: List[WeekMealServings] = []
+    meal_schedule: List[WeekMealSchedule] = []
 
     class Config:
         from_attributes = True
@@ -78,6 +95,33 @@ class WeekMealAdd(BaseModel):
 
 class WeekMealUpdate(BaseModel):
     servings: int = Field(ge=1, le=99)
+
+
+class WeekMealDayUpdate(BaseModel):
+    day_id: Optional[int] = None
+
+
+class WeekMealStatusUpdate(BaseModel):
+    status: Literal["planned", "skipped"]
+
+
+class CookDeduction(BaseModel):
+    item: str
+    unit: str
+    requested: str
+    deducted: str
+    short: str
+
+
+class CookResult(BaseModel):
+    meal_id: int
+    status: str
+    cooked_servings: Optional[int] = None
+    cooked_at: Optional[datetime] = None
+    day_id: Optional[int] = None
+    replayed: bool
+    deductions: List[CookDeduction]
+    untracked: List[str]
 
 
 class MealYieldUpdate(BaseModel):
@@ -142,3 +186,24 @@ class InventoryPurchase(BaseModel):
     reverted: bool
     replayed: bool
     inventory: InventoryItem
+
+
+class InventoryQuantityUpdate(BaseModel):
+    quantity: str = Field(min_length=1, max_length=20)
+
+
+class ReservedBy(BaseModel):
+    week_plan_id: int
+    meal_id: int
+    name: str
+    day: Optional[str] = None
+
+
+class InventoryAvailability(BaseModel):
+    item: str
+    unit: str
+    on_hand: str
+    reserved: str
+    available: str
+    short: str
+    reserved_by: List[ReservedBy]

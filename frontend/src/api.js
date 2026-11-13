@@ -65,6 +65,38 @@ export async function updateWeekMealServings(weekPlanId, mealId, servings) {
   return response.json();
 }
 
+async function putJson(url, body, fallback) {
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!response.ok) throw new Error(await failureMessage(response, fallback));
+  return response.json();
+}
+
+export function setWeekMealDay(weekPlanId, mealId, dayId) {
+  return putJson(`${API_BASE_URL}/week-plans/${weekPlanId}/meals/${mealId}/day`,
+    { day_id: dayId }, 'Could not change the day.');
+}
+
+export function setWeekMealStatus(weekPlanId, mealId, status) {
+  return putJson(`${API_BASE_URL}/week-plans/${weekPlanId}/meals/${mealId}/status`,
+    { status }, 'Could not change the meal status.');
+}
+
+export async function cookWeekMeal(weekPlanId, mealId) {
+  const response = await fetch(`${API_BASE_URL}/week-plans/${weekPlanId}/meals/${mealId}/cook`, {
+    method: 'POST'
+  });
+  if (!response.ok) throw new Error(await failureMessage(response, 'Could not mark the meal cooked.'));
+  return response.json();
+}
+
+export function setInventoryQuantity(itemId, quantity) {
+  return putJson(`${API_BASE_URL}/inventory/${itemId}`, { quantity }, 'Enter a quantity like 2 or 1/2.');
+}
+
 export async function updateMealYield(mealId, yieldServings) {
   const response = await fetch(`${API_BASE_URL}/meals/${mealId}`, {
     method: 'PATCH',
@@ -79,6 +111,7 @@ export async function removeMealFromWeek(weekPlanId, mealId) {
   const response = await fetch(`${API_BASE_URL}/week-plans/${weekPlanId}/meals/${mealId}`, {
     method: 'DELETE'
   });
+  if (!response.ok) throw new Error(await failureMessage(response, 'Could not remove the meal.'));
   return response.json();
 }
 

@@ -398,3 +398,49 @@
   font-size: 0.9rem;
   margin: 0.25rem 0;
 }
+
+/* Scheduling and cooking */
+.meal-schedule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.status-badge {
+  font-size: 0.75rem;
+  font-weight: normal;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: #e8eefc;
+  color: #1f3a8a;
+}
+
+.status-badge.cooked {
+  background: #dff5e1;
+  color: #1b6b2a;
+}
+
+.status-badge.skipped {
+  background: #eee;
+  color: #666;
+}
+
+.week-meal-item.skipped .meal-info h4 {
+  text-decoration: line-through;
+}
+
+.meal-schedule button:disabled,
+.meal-schedule select:disabled,
+.meal-servings input:disabled,
+.remove-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cook-message {
+  color: #8a5a00;
+  font-size: 0.9rem;
+  margin: 0.25rem 0;
+}
