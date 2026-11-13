@@ -42,7 +42,8 @@ function ShoppingList() {
 
       aggregatedIngredients.forEach(ingredient => {
         // Format as "quantity unit item" (e.g., "2 cups flour")
-        const itemName = [ingredient.quantity, ingredient.unit, ingredient.item].filter(Boolean).join(' ');
+        const baseName = [ingredient.quantity, ingredient.unit, ingredient.item].filter(Boolean).join(' ');
+        const itemName = ingredient.note ? `${baseName} (${ingredient.note})` : baseName;
 
         if (!existingNames.has(itemName.toLowerCase())) {
           newItems.push({
@@ -109,6 +110,12 @@ function ShoppingList() {
           <p className="import-hint">
             Auto-populate from {weekPlan.meals.length} meal{weekPlan.meals.length !== 1 ? 's' : ''} in this week's plan with smart quantity aggregation
           </p>
+          {weekPlan.meals.some(meal => meal.yield_servings == null) && (
+            <p className="import-hint">
+              No yield set for {weekPlan.meals.filter(meal => meal.yield_servings == null).map(meal => meal.name).join(', ')}.
+              Their quantities are used as written, not scaled by planned servings.
+            </p>
+          )}
         </div>
       )}
 

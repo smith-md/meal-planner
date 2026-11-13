@@ -106,9 +106,12 @@ Example `POST /meals/items` body:
 
 ### Meals
 
-- `GET /meals` – list all meals
-- `POST /meals` – create a meal (with ingredients)
-- `GET /meals/{meal_id}` – get a single meal
+- `GET /meals` – list all meals (optional `search` query parameter)
+- `POST /meals` – create a meal; `ingredients` is free text, one line per ingredient
+- `PATCH /meals/{meal_id}` – set or clear the recipe yield (404 if the meal does not exist)
+
+`yield_servings` is how many servings the recipe's written quantities make.
+It is an optional integer from 1 to 99 (`null` means no yield is set).
 
 Example `POST /meals` body:
 
@@ -116,12 +119,15 @@ Example `POST /meals` body:
 {
   "name": "Chicken Tacos",
   "notes": "Use leftover chicken if available",
-  "default_servings": 4,
-  "ingredients": [
-    { "item_id": 1, "quantity_per_serving": 0.5, "unit": "lb" },
-    { "item_id": 2, "quantity_per_serving": 2, "unit": "tortillas" }
-  ]
+  "ingredients": "1/2 lb chicken breast\n8 tortillas",
+  "yield_servings": 4
 }
+```
+
+Example `PATCH /meals/{meal_id}` body (send `null` to clear the yield):
+
+```json
+{ "yield_servings": 6 }
 ```
 
 ### Weekly plan
@@ -154,9 +160,9 @@ Example body:
 
 Returns the updated `WeekPlanRead` with recalculated summary.
 
-#### Add a meal to a day
+#### Add a meal to a week
 
-- `POST /week-plans/days/{day_id}/meals`
+- `POST /week-plans/{week_plan_id}/meals`
 
 Body:
 
@@ -167,13 +173,63 @@ Body:
 }
 ```
 
-If `servings` is omitted, it will use the meal's `default_servings`.
+`servings` (planned servings, integer 1-99) is optional. If omitted, it
+defaults to the meal's `yield_servings`, which may be `null`. The response is
+the week plan; its `meal_servings` list holds `{ "meal_id", "servings" }` for
+each planned meal.
 
-#### Remove a meal from a day
+#### Change planned servings
 
-- `DELETE /week-plans/day-meals/{day_meal_id}`
+- `PATCH /week-plans/{week_plan_id}/meals/{meal_id}` with body `{ "servings": 6 }`
 
-Removes that meal from the day and returns the updated week plan with summary.
+`servings` is required (1-99). Returns the updated week plan, or 404 if the
+meal is not planned in that week.
+
+#### Remove a meal from a week
+
+- `DELETE /week-plans/{week_plan_id}/meals/{meal_id}`
+
+Removes that meal from the week and returns the updated week plan.
+
+#### Scaling, pairings, and shopping list
+
+Ingredient quantities are scaled by `servings / yield_servings` before the
+shopping list (`GET /week-plans/{week_plan_id}/shopping-list`) and pairings
+(`GET /week-plans/{week_plan_id}/pairings`) are calculated. Fractions
+(`1/2`, `1 1/2`, `½`) and compatible units (for example cups and tablespoons)
+are combined.
+
+- If a meal has no yield (or no planned servings), the factor is 1 and the
+  written quantities are used as is. The UI shows a note for meals with no yield.
+- Lines whose quantity cannot be parsed are never scaled. In the shopping list
+  they appear as unmeasured entries, with a `note` such as `not scaled (recipe x1.5)`
+  when the meal's scale factor is not 1.
+- Each pairing row includes `needs_more` (boolean) and `shortfall` (text such
+  as `1/2 head of cabbage`, empty when `needs_more` is false). Changing a meal's
+  servings recalculates the remaining amount; if planned meals now use more than
+  the tracked ingredient provides, `needs_more` becomes true. Each suggestion in
+  `current` and `next_week` also carries its own `needs_more` flag.
+
+#### Database and migration
+
+The database is SQLite at `./meal_planner.db` unless the `DATABASE_URL`
+environment variable is set (for example `sqlite:///:memory:` for a throwaway
+database). On startup the app runs `create_all` and then adds the
+`meals.yield_servings` and `week_meals.servings` columns to older databases
+that lack them. This is idempotent, and existing rows keep `NULL` values.
+
+---
+
+## Running the tests
+
+From the `backend` directory:
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+`pytest.ini` sets `pythonpath = .` and `testpaths = tests`.
 
 ---
 

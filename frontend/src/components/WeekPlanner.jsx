@@ -1,8 +1,51 @@
 import { useState, useEffect } from 'react';
-import { getCurrentWeekPlan, updateDayState, addMealToWeek, removeMealFromWeek, fetchMeals } from '../api';
+import { getCurrentWeekPlan, updateDayState, addMealToWeek, removeMealFromWeek, fetchMeals, updateWeekMealServings } from '../api';
 import MealPickerModal from './MealPickerModal';
 import MealPairings from './MealPairings';
 import './WeekPlanner.css';
+
+function ServingsInput({ meal, servings, onCommit }) {
+  const [draft, setDraft] = useState(servings ?? '');
+  const [error, setError] = useState('');
+
+  const commit = async () => {
+    if (draft === '' || Number(draft) === servings) {
+      setDraft(servings ?? '');
+      return;
+    }
+    setError('');
+    try {
+      await onCommit(meal.id, Number(draft));
+    } catch (err) {
+      setError(err.message);
+      setDraft(servings ?? '');
+    }
+  };
+
+  return (
+    <div className="meal-servings">
+      <label>
+        Planned servings{' '}
+        <input
+          type="number"
+          min="1"
+          max="99"
+          step="1"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+          aria-label={`Planned servings for ${meal.name}`}
+        />
+      </label>
+      {meal.yield_servings != null && <span className="yield-info"> (recipe makes {meal.yield_servings})</span>}
+      {meal.yield_servings == null && (
+        <p className="yield-note">No yield set, quantities used as written</p>
+      )}
+      {error && <p role="alert" className="yield-error">{error}</p>}
+    </div>
+  );
+}
 
 function WeekPlanner() {
   const [weekPlan, setWeekPlan] = useState(null);
@@ -52,6 +95,16 @@ function WeekPlanner() {
       await loadWeekPlan();
       setShowMealPicker(false);
     }
+  };
+
+  const handleServingsChange = async (mealId, servings) => {
+    const updated = await updateWeekMealServings(weekPlan.id, mealId, servings);
+    setWeekPlan(updated);
+  };
+
+  const servingsFor = (meal) => {
+    const row = (weekPlan.meal_servings || []).find(entry => entry.meal_id === meal.id);
+    return row && row.servings != null ? row.servings : (meal.yield_servings ?? null);
   };
 
   const handleRemoveMeal = async (mealId) => {
@@ -150,6 +203,12 @@ function WeekPlanner() {
                   <h4>{meal.name}</h4>
                   {meal.tags && <span className="meal-tags">{meal.tags}</span>}
                   {meal.notes && <p className="meal-notes">{meal.notes}</p>}
+                  <ServingsInput
+                    key={`${meal.id}-${servingsFor(meal) ?? ''}`}
+                    meal={meal}
+                    servings={servingsFor(meal)}
+                    onCommit={handleServingsChange}
+                  />
                   <a href="#pairing-heading" onClick={() => setPairingSource(String(meal.id))}>Find a meal for leftover ingredients</a>
                 </div>
                 <button

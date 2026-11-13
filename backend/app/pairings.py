@@ -108,13 +108,46 @@ def parse_amount(line):
     return None
 
 
-def meal_amounts(meal):
+def scale_factor(servings, yield_servings):
+    """planned servings / recipe yield; 1.0 when either is missing or invalid."""
+    if servings and yield_servings and servings >= 1 and yield_servings >= 1:
+        return servings / yield_servings
+    return 1.0
+
+
+def week_servings(week):
+    """{meal_id: planned servings or None} for the meals planned in a week."""
+    if week is None:
+        return {}
+    return {row.meal_id: row.servings for row in week.meal_servings}
+
+
+def meal_lines(meal, servings=None):
+    """Scaled base totals, first Ingredient per key, unparsed lines, and the scale factor."""
+    factor = scale_factor(servings, meal.yield_servings)
     totals = defaultdict(float)
+    first = {}
+    unmeasured = []
     for line in (meal.ingredients or "").replace("\\n", "\n").splitlines():
         ingredient = parse_amount(line)
         if ingredient:
-            totals[ingredient.key] += ingredient.base_quantity
-    return totals
+            totals[ingredient.key] += ingredient.base_quantity * factor
+            first.setdefault(ingredient.key, ingredient)
+        elif line.strip():
+            unmeasured.append(line.strip())
+    return totals, first, unmeasured, factor
+
+
+def meal_amounts(meal, servings=None):
+    return meal_lines(meal, servings)[0]
+
+
+def planned_amount(meals, servings_by_meal, key, exclude=None):
+    """Total base quantity of an ingredient key used by planned meals at their servings."""
+    return sum(
+        meal_amounts(meal, servings_by_meal.get(meal.id))[key]
+        for meal in meals if meal != exclude
+    )
 
 
 def tracked_ingredients(db, week):
@@ -137,10 +170,11 @@ def tracked_ingredients(db, week):
 
 
 def available_amount(ingredient, source, source_week):
-    used = sum(
-        meal_amounts(meal)[ingredient.key] for meal in source_week.meals if meal != source
+    """Leftover after the source week's other meals; not floored (callers floor for display)."""
+    used = planned_amount(
+        source_week.meals, week_servings(source_week), ingredient.key, exclude=source
     )
-    return max(0, ingredient.base_quantity - used)
+    return ingredient.base_quantity - used
 
 
 def suggestions(ingredient, remaining, meals, planned):
@@ -156,6 +190,7 @@ def suggestions(ingredient, remaining, meals, planned):
                 "name": meal.name,
                 "uses": ingredient.describe(min(quantity, remaining)),
                 "extra": ingredient.describe(extra) if extra > EPSILON else "",
+                "needs_more": extra > EPSILON,
             }))
     return [suggestion for _, suggestion in sorted(candidates, key=lambda candidate: candidate[0])[:5]]
 
@@ -167,21 +202,31 @@ def get_pairings(db, week):
     meals = crud.get_meals(db)
     current_planned = {meal.id for meal in week.meals}
     next_planned = {meal.id for meal in following.meals} if following else set()
+    current_servings = week_servings(week)
+    following_servings = week_servings(following)
     result = []
     for row, ingredient, source, source_week in tracked_ingredients(db, week):
         carried = source_week.id != week.id
+        key = ingredient.key
         remaining = available_amount(ingredient, source, source_week)
         if carried:
-            remaining -= sum(meal_amounts(meal)[ingredient.key] for meal in week.meals)
+            remaining -= planned_amount(week.meals, current_servings, key)
         next_remaining = remaining
+        following_use = 0.0
         if following:
-            next_remaining -= sum(meal_amounts(meal)[ingredient.key] for meal in following.meals)
+            following_use = planned_amount(following.meals, following_servings, key)
+            next_remaining -= following_use
+        # Planned meals that draw on this leftover (same weeks that feed remaining/next_remaining).
+        shortfall_base = -remaining if carried else -next_remaining
+        needs_more = shortfall_base > EPSILON
         result.append({
             "id": row.id,
             "amount": row.amount,
             "source": source.name if source else None,
             "carried": carried,
             "remaining": ingredient.describe(remaining) if remaining > EPSILON else "",
+            "needs_more": needs_more,
+            "shortfall": ingredient.describe(shortfall_base) if needs_more else "",
             "current": suggestions(ingredient, remaining, meals, current_planned),
             "next_week": [] if carried else suggestions(
                 ingredient, next_remaining, meals, current_planned | next_planned
@@ -194,21 +239,22 @@ def shopping_list(db, week):
     on_hand = defaultdict(float)
     for _, ingredient, source, source_week in tracked_ingredients(db, week):
         if source_week.id != week.id:
-            on_hand[ingredient.key] += available_amount(ingredient, source, source_week)
+            on_hand[ingredient.key] += max(0, available_amount(ingredient, source, source_week))
         elif source is None:
             on_hand[ingredient.key] += ingredient.base_quantity
 
     totals = defaultdict(float)
     ingredients = {}
     unmeasured = []
+    servings_by_meal = week_servings(week)
     for meal in week.meals:
-        for line in (meal.ingredients or "").replace("\\n", "\n").splitlines():
-            ingredient = parse_amount(line)
-            if ingredient:
-                totals[ingredient.key] += ingredient.base_quantity
-                ingredients.setdefault(ingredient.key, ingredient)
-            elif line.strip():
-                unmeasured.append(line.strip())
+        meal_totals, first, lines, factor = meal_lines(meal, servings_by_meal.get(meal.id))
+        for key, quantity in meal_totals.items():
+            totals[key] += quantity
+        for key, ingredient in first.items():
+            ingredients.setdefault(key, ingredient)
+        note = f"not scaled (recipe x{factor:.3g})" if abs(factor - 1) > EPSILON else ""
+        unmeasured.extend((line, note) for line in lines)
     result = []
     for key, ingredient in ingredients.items():
         remaining = totals[key] - on_hand[key]
@@ -218,5 +264,9 @@ def shopping_list(db, week):
                 "unit": ingredient.unit if ingredient.unit != "piece" else "",
                 "item": ingredient.item,
             })
-    result.extend({"quantity": "", "unit": "", "item": line} for line in dict.fromkeys(unmeasured))
+    for line, note in dict.fromkeys(unmeasured):
+        entry = {"quantity": "", "unit": "", "item": line}
+        if note:
+            entry["note"] = note
+        result.append(entry)
     return sorted(result, key=lambda item: item["item"].lower())

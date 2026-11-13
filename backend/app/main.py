@@ -6,15 +6,17 @@ from datetime import date
 import httpx
 from bs4 import BeautifulSoup
 import json
+import re
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
 from . import models, schemas, crud, pairings
-from .database import engine, get_db
+from .database import engine, get_db, ensure_columns
 
 models.Base.metadata.create_all(bind=engine)
+ensure_columns(engine)
 
 app = FastAPI(title="Meal Planner API")
 
@@ -43,6 +45,14 @@ def create_meal(meal: schemas.MealCreate, db: Session = Depends(get_db)):
     return crud.create_meal(db, meal)
 
 
+@app.patch("/meals/{meal_id}", response_model=schemas.Meal)
+def update_meal_yield(meal_id: int, data: schemas.MealYieldUpdate, db: Session = Depends(get_db)):
+    meal = crud.update_meal_yield(db, meal_id, data.yield_servings)
+    if not meal:
+        raise HTTPException(status_code=404, detail="Meal not found")
+    return meal
+
+
 @app.get("/week-plans/current", response_model=schemas.WeekPlan)
 def get_current_week_plan(ref_date: Optional[date] = None, db: Session = Depends(get_db)):
     return crud.get_current_week_plan(db, ref_date)
@@ -58,9 +68,18 @@ def update_day(day_id: int, day_update: schemas.DayUpdate, db: Session = Depends
 
 @app.post("/week-plans/{week_plan_id}/meals", response_model=schemas.WeekPlan)
 def add_meal_to_week(week_plan_id: int, meal_data: schemas.WeekMealAdd, db: Session = Depends(get_db)):
-    week_plan = crud.add_meal_to_week(db, week_plan_id, meal_data.meal_id)
+    week_plan = crud.add_meal_to_week(db, week_plan_id, meal_data.meal_id, meal_data.servings)
     if not week_plan:
         raise HTTPException(status_code=404, detail="Week plan or Meal not found")
+    return week_plan
+
+
+@app.patch("/week-plans/{week_plan_id}/meals/{meal_id}", response_model=schemas.WeekPlan)
+def update_week_meal_servings(week_plan_id: int, meal_id: int, data: schemas.WeekMealUpdate,
+                              db: Session = Depends(get_db)):
+    week_plan = crud.update_week_meal_servings(db, week_plan_id, meal_id, data.servings)
+    if not week_plan:
+        raise HTTPException(status_code=404, detail="Meal is not planned in this week")
     return week_plan
 
 
@@ -113,6 +132,22 @@ def remove_tracked_ingredient(ingredient_id: int, db: Session = Depends(get_db))
         db.commit()
 
 
+def parse_yield(value):
+    """Best-effort servings count from a schema.org recipeYield (int, string, or list)."""
+    if isinstance(value, list):
+        value = value[0] if value else None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        number = int(value)
+    elif isinstance(value, str):
+        match = re.search(r"\d+", value)
+        number = int(match.group()) if match else 0
+    else:
+        return None
+    return number if 1 <= number <= 99 else None
+
+
 @app.post("/import-recipe", response_model=schemas.RecipeImportResponse)
 async def import_recipe(recipe_url: schemas.RecipeImportURL):
     try:
@@ -161,7 +196,8 @@ async def import_recipe(recipe_url: schemas.RecipeImportURL):
                 name=name,
                 notes=description,
                 tags=keywords,
-                ingredients=ingredients
+                ingredients=ingredients,
+                yield_servings=parse_yield(recipe_data.get('recipeYield'))
             )
         else:
             # Fallback to basic scraping

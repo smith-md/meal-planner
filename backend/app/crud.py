@@ -78,12 +78,25 @@ def update_day_state(db: Session, day_id: int, day_update: schemas.DayUpdate):
     return day
 
 
-def add_meal_to_week(db: Session, week_plan_id: int, meal_id: int):
+def update_meal_yield(db: Session, meal_id: int, yield_servings: Optional[int]):
+    meal = db.query(models.Meal).filter(models.Meal.id == meal_id).first()
+    if meal:
+        meal.yield_servings = yield_servings
+        db.commit()
+        db.refresh(meal)
+    return meal
+
+
+def add_meal_to_week(db: Session, week_plan_id: int, meal_id: int, servings: Optional[int] = None):
     week_plan = db.query(models.WeekPlan).filter(models.WeekPlan.id == week_plan_id).first()
     meal = db.query(models.Meal).filter(models.Meal.id == meal_id).first()
 
     if week_plan and meal and meal not in week_plan.meals:
-        week_plan.meals.append(meal)
+        db.add(models.WeekMeal(
+            week_plan_id=week_plan_id,
+            meal_id=meal_id,
+            servings=servings or meal.yield_servings,
+        ))
         db.commit()
         db.refresh(week_plan)
     return week_plan
@@ -94,12 +107,28 @@ def remove_meal_from_week(db: Session, week_plan_id: int, meal_id: int):
     meal = db.query(models.Meal).filter(models.Meal.id == meal_id).first()
 
     if week_plan and meal and meal in week_plan.meals:
-        week_plan.meals.remove(meal)
+        db.query(models.WeekMeal).filter_by(
+            week_plan_id=week_plan_id, meal_id=meal_id
+        ).delete()
         db.query(models.PairingIngredient).filter_by(
             week_plan_id=week_plan_id, meal_id=meal_id
         ).delete()
         db.commit()
         db.refresh(week_plan)
+    return week_plan
+
+
+def update_week_meal_servings(db: Session, week_plan_id: int, meal_id: int, servings: int):
+    rows = db.query(models.WeekMeal).filter_by(
+        week_plan_id=week_plan_id, meal_id=meal_id
+    ).all()
+    if not rows:
+        return None
+    for row in rows:
+        row.servings = servings
+    db.commit()
+    week_plan = db.query(models.WeekPlan).filter(models.WeekPlan.id == week_plan_id).first()
+    db.refresh(week_plan)
     return week_plan
 
 
@@ -113,14 +142,16 @@ UNIT_CONVERSIONS = {
     'pint': 2.0, 'pints': 2.0, 'pt': 2.0,
     'quart': 4.0, 'quarts': 4.0, 'qt': 4.0,
     'gallon': 16.0, 'gallons': 16.0, 'gal': 16.0,
-    'milliliter': 0.00423, 'milliliters': 0.00423, 'ml': 0.00423,
-    'liter': 4.23, 'liters': 4.23, 'l': 4.23,
+    # Exact US customary factors (1 US cup = 236.5882365 ml)
+    'milliliter': 1/236.5882365, 'milliliters': 1/236.5882365, 'ml': 1/236.5882365,
+    'liter': 1000/236.5882365, 'liters': 1000/236.5882365, 'l': 1000/236.5882365,
 
     # Weight - base: ounces
     'ounce': 1.0, 'ounces': 1.0, 'oz': 1.0,
     'pound': 16.0, 'pounds': 16.0, 'lb': 16.0, 'lbs': 16.0,
-    'gram': 0.035, 'grams': 0.035, 'g': 0.035,
-    'kilogram': 35.27, 'kilograms': 35.27, 'kg': 35.27,
+    # Exact factors (1 oz = 28.349523125 g)
+    'gram': 1/28.349523125, 'grams': 1/28.349523125, 'g': 1/28.349523125,
+    'kilogram': 1000/28.349523125, 'kilograms': 1000/28.349523125, 'kg': 1000/28.349523125,
 
     # Count - base: pieces
     'piece': 1.0, 'pieces': 1.0, 'pc': 1.0,

@@ -33,13 +33,45 @@ export async function updateDayState(dayId, state) {
   return response.json();
 }
 
-export async function addMealToWeek(weekPlanId, mealId) {
+export async function addMealToWeek(weekPlanId, mealId, servings) {
+  const body = { meal_id: mealId };
+  if (servings !== undefined && servings !== null) body.servings = servings;
   const response = await fetch(`${API_BASE_URL}/week-plans/${weekPlanId}/meals`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ meal_id: mealId })
+    body: JSON.stringify(body)
   });
   if (!response.ok) throw new Error('Could not add the meal.');
+  return response.json();
+}
+
+async function failureMessage(response, fallback) {
+  try {
+    const result = await response.json();
+    if (typeof result.detail === 'string') return result.detail;
+  } catch (error) {
+    // fall through to the generic message
+  }
+  return fallback;
+}
+
+export async function updateWeekMealServings(weekPlanId, mealId, servings) {
+  const response = await fetch(`${API_BASE_URL}/week-plans/${weekPlanId}/meals/${mealId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ servings })
+  });
+  if (!response.ok) throw new Error(await failureMessage(response, 'Servings must be a whole number from 1 to 99.'));
+  return response.json();
+}
+
+export async function updateMealYield(mealId, yieldServings) {
+  const response = await fetch(`${API_BASE_URL}/meals/${mealId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ yield_servings: yieldServings })
+  });
+  if (!response.ok) throw new Error(await failureMessage(response, 'Yield must be a whole number from 1 to 99.'));
   return response.json();
 }
 

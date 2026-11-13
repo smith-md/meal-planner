@@ -328,3 +328,29 @@
     font-size: 1.25rem;
   }
 }
+
+/* Recipe yield control */
+.meal-yield {
+  margin: 0.5rem 0;
+}
+
+.meal-yield input {
+  width: 4rem;
+  padding: 0.25rem;
+}
+
+.meal-yield .yield-note {
+  color: #8a5a00;
+  font-size: 0.85rem;
+  margin: 0.25rem 0;
+}
+
+.meal-yield .yield-error {
+  color: #b00020;
+}
+
+.yield-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}

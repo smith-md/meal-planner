@@ -60,7 +60,10 @@ export default function MealPairings({ week, selectedSource, onSelectSource, nex
         <article key={row.id}>
           <h4>{row.remaining || row.amount}</h4>
           <p>{row.carried ? 'Carried from last week' : row.source ? `Left over from ${row.source}` : 'On hand'}</p>
-          {!row.remaining && <p>Used by meals already in the plan.</p>}
+          {row.needs_more && (
+            <p role="status" className="needs-more">Planned meals need {row.shortfall} more than you have</p>
+          )}
+          {!row.remaining && !row.needs_more && <p>Used by meals already in the plan.</p>}
           {row.remaining && !row.current.length && !row.next_week.length && <p>No matching meals in your library.</p>}
           {[[row.current, nextWeek ? 'next week' : 'this week', false], [row.next_week, nextWeek ? 'the following week' : 'next week', true]].map(([meals, label, next]) => (
             meals.length > 0 && <ul key={label} aria-label={`Suggestions for ${label}`}>

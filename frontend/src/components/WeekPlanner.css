@@ -378,3 +378,23 @@
     font-size: 1.25rem;
   }
 }
+
+/* Yields and planned servings */
+.meal-servings input,
+.meal-yield input {
+  width: 4rem;
+  padding: 0.25rem;
+}
+
+.yield-note {
+  color: #8a5a00;
+  font-size: 0.85rem;
+  margin: 0.25rem 0;
+}
+
+.yield-error,
+.needs-more {
+  color: #b00020;
+  font-size: 0.9rem;
+  margin: 0.25rem 0;
+}
