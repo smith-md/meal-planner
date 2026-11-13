@@ -42,7 +42,7 @@ function ShoppingList() {
 
       aggregatedIngredients.forEach(ingredient => {
         // Format as "quantity unit item" (e.g., "2 cups flour")
-        const itemName = `${ingredient.quantity} ${ingredient.unit} ${ingredient.item}`.trim();
+        const itemName = [ingredient.quantity, ingredient.unit, ingredient.item].filter(Boolean).join(' ');
 
         if (!existingNames.has(itemName.toLowerCase())) {
           newItems.push({

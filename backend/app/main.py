@@ -2,17 +2,16 @@ from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from datetime import date
 import httpx
 from bs4 import BeautifulSoup
 import json
-import base64
-import os
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-from . import models, schemas, crud
+from . import models, schemas, crud, pairings
 from .database import engine, get_db
 
 models.Base.metadata.create_all(bind=engine)
@@ -45,8 +44,8 @@ def create_meal(meal: schemas.MealCreate, db: Session = Depends(get_db)):
 
 
 @app.get("/week-plans/current", response_model=schemas.WeekPlan)
-def get_current_week_plan(db: Session = Depends(get_db)):
-    return crud.get_current_week_plan(db)
+def get_current_week_plan(ref_date: Optional[date] = None, db: Session = Depends(get_db)):
+    return crud.get_current_week_plan(db, ref_date)
 
 
 @app.patch("/week-plans/days/{day_id}", response_model=schemas.Day)
@@ -76,7 +75,42 @@ def remove_meal_from_week(week_plan_id: int, meal_id: int, db: Session = Depends
 @app.get("/week-plans/{week_plan_id}/shopping-list")
 def get_shopping_list(week_plan_id: int, db: Session = Depends(get_db)):
     """Get aggregated shopping list with smart quantity combining."""
-    return crud.get_aggregated_shopping_list(db, week_plan_id)
+    week = db.get(models.WeekPlan, week_plan_id)
+    return pairings.shopping_list(db, week) if week else []
+
+
+@app.get("/week-plans/{week_plan_id}/pairings", response_model=List[schemas.PairingIngredient])
+def list_pairings(week_plan_id: int, db: Session = Depends(get_db)):
+    week = db.get(models.WeekPlan, week_plan_id)
+    if not week:
+        raise HTTPException(404, "Week plan not found")
+    return pairings.get_pairings(db, week)
+
+
+@app.post("/week-plans/{week_plan_id}/pairings", response_model=List[schemas.PairingIngredient])
+def track_ingredient(week_plan_id: int, data: schemas.PairingIngredientCreate, db: Session = Depends(get_db)):
+    week = db.get(models.WeekPlan, week_plan_id)
+    if not week:
+        raise HTTPException(404, "Week plan not found")
+    if data.meal_id is not None and data.meal_id not in {meal.id for meal in week.meals}:
+        raise HTTPException(400, "Choose a meal in this week's plan")
+    ingredient = pairings.parse_amount(data.amount)
+    if not ingredient:
+        raise HTTPException(400, "Enter an amount like 1/2 head of cabbage.")
+    for _, existing, _, _ in pairings.tracked_ingredients(db, week):
+        if existing.key == ingredient.key:
+            raise HTTPException(409, "This ingredient is already tracked. Remove it before changing the amount.")
+    db.add(models.PairingIngredient(week_plan_id=week.id, meal_id=data.meal_id, amount=data.amount.strip()))
+    db.commit()
+    return pairings.get_pairings(db, week)
+
+
+@app.delete("/pairing-ingredients/{ingredient_id}", status_code=204)
+def remove_tracked_ingredient(ingredient_id: int, db: Session = Depends(get_db)):
+    row = db.get(models.PairingIngredient, ingredient_id)
+    if row:
+        db.delete(row)
+        db.commit()
 
 
 @app.post("/import-recipe", response_model=schemas.RecipeImportResponse)
@@ -116,7 +150,7 @@ async def import_recipe(recipe_url: schemas.RecipeImportURL):
 
             # Extract ingredients
             ingredients_list = recipe_data.get('recipeIngredient', [])
-            ingredients = '\\n'.join(ingredients_list) if ingredients_list else ''
+            ingredients = '\n'.join(ingredients_list) if ingredients_list else ''
 
             # Extract tags/keywords
             keywords = recipe_data.get('keywords', '')
@@ -149,102 +183,6 @@ async def import_recipe(recipe_url: schemas.RecipeImportURL):
 
 @app.post("/import-recipe-from-image", response_model=schemas.RecipeImportResponse)
 async def import_recipe_from_image(image: UploadFile = File(...)):
-    try:
-        # Read and encode image
-        image_data = await image.read()
-        base64_image = base64.b64encode(image_data).decode('utf-8')
-
-        # Determine media type
-        media_type = image.content_type or "image/jpeg"
-
-        # Get Anthropic API key from environment
-        api_key = os.getenv('ANTHROPIC_API_KEY')
-        if not api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="ANTHROPIC_API_KEY not configured. Please set it in your environment."
-            )
-
-        # Call Claude API with vision
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": api_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json"
-                },
-                json={
-                    "model": "claude-3-5-sonnet-20241022",
-                    "max_tokens": 1024,
-                    "messages": [{
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "image",
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": media_type,
-                                    "data": base64_image
-                                }
-                            },
-                            {
-                                "type": "text",
-                                "text": """Please extract recipe information from this image. Return a JSON object with the following fields:
-- name: The recipe name
-- notes: Brief description or cooking notes
-- tags: Relevant tags (e.g., "vegetarian", "quick", "italian") as comma-separated values
-- ingredients: List of ingredients, one per line
-
-If this is not a recipe image, return an error message in the name field."""
-                            }
-                        ]
-                    }]
-                },
-                timeout=30.0
-            )
-
-            if response.status_code != 200:
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail=f"Claude API error: {response.text}"
-                )
-
-            result = response.json()
-            content = result['content'][0]['text']
-
-            # Try to parse JSON from the response
-            try:
-                # Look for JSON in the response
-                import re
-                json_match = re.search(r'\{[\s\S]*\}', content)
-                if json_match:
-                    recipe_data = json.loads(json_match.group())
-                else:
-                    # Fallback: treat the whole response as the recipe name
-                    recipe_data = {
-                        "name": content[:100],
-                        "notes": "Extracted from image",
-                        "tags": "",
-                        "ingredients": ""
-                    }
-
-                return schemas.RecipeImportResponse(
-                    name=recipe_data.get('name', 'Recipe from Image'),
-                    notes=recipe_data.get('notes', ''),
-                    tags=recipe_data.get('tags', ''),
-                    ingredients=recipe_data.get('ingredients', '')
-                )
-            except json.JSONDecodeError:
-                # If no valid JSON, use the text response as notes
-                return schemas.RecipeImportResponse(
-                    name="Recipe from Image",
-                    notes=content,
-                    tags="",
-                    ingredients=""
-                )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
+    # Photo import is not available yet; a replacement for the removed AI-based
+    # extraction has not been chosen.
+    raise HTTPException(status_code=501, detail="Photo import is not available yet.")

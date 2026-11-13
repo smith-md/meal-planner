@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from datetime import date, timedelta
 from . import models, schemas
 import re
@@ -27,8 +28,8 @@ def create_meal(db: Session, meal: schemas.MealCreate):
     return db_meal
 
 
-def get_current_week_plan(db: Session):
-    today = date.today()
+def get_current_week_plan(db: Session, ref_date: date = None):
+    today = ref_date or date.today()
     start_of_week = today - timedelta(days=today.weekday())
 
     week_plan = db.query(models.WeekPlan).filter(
@@ -45,20 +46,25 @@ def create_week_plan(db: Session, start_date: date):
     end_date = start_date + timedelta(days=6)
     week_plan = models.WeekPlan(start_date=start_date, end_date=end_date)
     db.add(week_plan)
-    db.commit()
-    db.refresh(week_plan)
 
     day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     for i in range(7):
         day = models.Day(
-            week_plan_id=week_plan.id,
+            week_plan=week_plan,
             date=start_date + timedelta(days=i),
             day_name=day_names[i],
             state="need"
         )
         db.add(day)
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        existing = db.query(models.WeekPlan).filter_by(start_date=start_date).first()
+        if existing:
+            return existing
+        raise
     db.refresh(week_plan)
     return week_plan
 
@@ -89,6 +95,9 @@ def remove_meal_from_week(db: Session, week_plan_id: int, meal_id: int):
 
     if week_plan and meal and meal in week_plan.meals:
         week_plan.meals.remove(meal)
+        db.query(models.PairingIngredient).filter_by(
+            week_plan_id=week_plan_id, meal_id=meal_id
+        ).delete()
         db.commit()
         db.refresh(week_plan)
     return week_plan

@@ -46,3 +46,12 @@ class Day(Base):
     state = Column(String, default="need")  # "need" or "none"
 
     week_plan = relationship("WeekPlan", back_populates="days")
+
+
+class PairingIngredient(Base):
+    __tablename__ = "pairing_ingredients"
+
+    id = Column(Integer, primary_key=True)
+    week_plan_id = Column(Integer, ForeignKey("week_plans.id"), nullable=False, index=True)
+    meal_id = Column(Integer, ForeignKey("meals.id"), nullable=True)
+    amount = Column(String, nullable=False)

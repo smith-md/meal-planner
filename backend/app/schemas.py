@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import date
 from typing import List, Optional
 
@@ -63,6 +63,28 @@ class DayUpdate(BaseModel):
 
 class WeekMealAdd(BaseModel):
     meal_id: int
+
+
+class PairingIngredientCreate(BaseModel):
+    amount: str = Field(min_length=1, max_length=200)
+    meal_id: Optional[int] = None
+
+
+class PairingSuggestion(BaseModel):
+    meal_id: int
+    name: str
+    uses: str
+    extra: str
+
+
+class PairingIngredient(BaseModel):
+    id: int
+    amount: str
+    source: Optional[str]
+    carried: bool
+    remaining: str
+    current: List[PairingSuggestion]
+    next_week: List[PairingSuggestion]
 
 
 class RecipeImportURL(BaseModel):

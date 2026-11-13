@@ -1,4 +1,46 @@
 /* Mobile-first styles */
+.meal-pairings {
+  border-top: 1px solid #ddd;
+  padding-top: 1rem;
+}
+
+.meal-pairings form,
+.meal-pairings li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.meal-pairings label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.meal-pairings input,
+.meal-pairings select,
+.meal-pairings button {
+  min-height: 44px;
+  padding: 0.5rem;
+}
+
+.meal-pairings article {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+.meal-pairings ul {
+  padding: 0;
+}
+
+.meal-pairings li {
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+}
+
 .week-planner {
   background: white;
   border-radius: 12px;
