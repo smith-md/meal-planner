@@ -20,6 +20,10 @@ Base = declarative_base()
 _ADDED_COLUMNS = (
     ("meals", "yield_servings", "INTEGER"),
     ("week_meals", "servings", "INTEGER"),
+    ("week_meals", "day_id", "INTEGER"),
+    ("week_meals", "status", "VARCHAR"),
+    ("week_meals", "cooked_servings", "INTEGER"),
+    ("week_meals", "cooked_at", "DATETIME"),
 )
 
 

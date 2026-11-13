@@ -191,6 +191,25 @@ meal is not planned in that week.
 
 Removes that meal from the week and returns the updated week plan.
 
+#### Assign a day, skip, and cook
+
+- `PUT /week-plans/{week_plan_id}/meals/{meal_id}/day` with `{ "day_id": 12 }` assigns the meal to a day of that week (400 if the day is in another week); `null` unassigns. Returns the week plan, or 404 if the meal is not planned there. 409 if already cooked.
+- `PUT /week-plans/{week_plan_id}/meals/{meal_id}/status` with `{ "status": "planned" | "skipped" }`. 409 if already cooked.
+- The week plan's `meal_schedule` lists `{ meal_id, day_id, status, cooked_servings, cooked_at }` per planned meal.
+- `POST /week-plans/{week_plan_id}/meals/{meal_id}/cook` marks the meal cooked and deducts ingredients at the planned servings, which are frozen as `cooked_servings`. 409 if no day is assigned or the meal is skipped. It deducts exactly once; repeats return the stored result with `replayed: true`.
+  - Deduction order: fridge, then pantry. Short stock floors at zero; each `deductions` entry has `item`, `unit`, `requested`, `deducted`, `short`. Unparseable lines are in `untracked`.
+  - A cooked meal cannot be re-dated, re-skipped, have its servings changed (PATCH), or be removed (DELETE); these return 409.
+- Planning, rescheduling, and skipping never change stock; only cooking does.
+
+#### Inventory
+
+- `GET /inventory` – stock rows (`id`, `item`, `unit`, `quantity`, `location`).
+- `GET /inventory/availability` – per ingredient `on_hand`, `reserved`, `available`, `short`, and `reserved_by` (week plan, meal, day). Reservations are computed from planned meals (not skipped or cooked) in weeks ending on or after the optional `ref_date` (default today); nothing is stored.
+- `PUT /inventory/{item_id}` with `{ "quantity": "2" }` – manual correction to an absolute quantity in the row's unit (whole numbers, fractions like `1/2` or `1 1/2`, or decimals; `0` empties the row). 400 for an invalid quantity, 404 for an unknown id.
+- `POST /inventory/purchases` and `DELETE /inventory/purchases/{purchase_id}` credit and revert purchases (see the root `README.md`).
+
+The shopping list and pairings do not subtract inventory and ignore cooked/skipped state.
+
 #### Scaling, pairings, and shopping list
 
 Ingredient quantities are scaled by `servings / yield_servings` before the

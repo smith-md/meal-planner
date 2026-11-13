@@ -83,7 +83,16 @@ The app will be available at
 - `POST /inventory/purchases` with `{"purchase_id", "amount", "location"}` credits an amount such as `"2 cups rice"`. `purchase_id` is a client-generated, single-use id (8-64 characters): repeating a request with the same id never credits again. An amount without a leading quantity returns 400; a missing or invalid location returns 422.
 - `DELETE /inventory/purchases/{purchase_id}` reverts that credit (never below zero). A reverted id cannot be credited again.
 - In the Shopping List, checking an item credits it immediately when the quantity and location are known; otherwise an inline panel asks for the amount and fridge/pantry. Unchecking a credited item reverts it, and "Edit" on a purchased row reverts it and reopens the panel. The panel also offers "Mark purchased without adding to inventory". Items already marked purchased before this feature are not credited.
-- The shopping list calculation is not reduced by inventory, and cooking a meal does not use up stock yet.
+- The shopping list calculation and pairings are not reduced by inventory, and they ignore whether a meal is cooked or skipped.
+
+### Assigning meals to days and cooking
+
+- A planned meal can be assigned to a day with `PUT /week-plans/{id}/meals/{meal_id}/day` (body `{"day_id": 12}`; `null` unassigns) and rescheduled by calling it again. Skip or unskip it with `PUT /week-plans/{id}/meals/{meal_id}/status` (body `{"status": "skipped"}` or `"planned"`). Planning, rescheduling, and skipping never change stock.
+- `GET /inventory/availability` reports, per ingredient, `on_hand` (fridge + pantry), `reserved` (needed by planned meals, not skipped or cooked, in weeks that have not ended), and `available` (on hand minus reserved, never below 0). If reservations exceed stock, `short` shows the gap. Reservations are computed on request, not stored. Half a cabbage stays on hand while a planned meal reserves it.
+- `POST /week-plans/{id}/meals/{meal_id}/cook` marks a meal cooked and deducts its ingredients, scaled to the servings at that moment (frozen as `cooked_servings`). It requires an assigned day (409 otherwise) and a meal that is not skipped (409). Cooking runs once: repeating the request deducts nothing more and returns the stored result with `replayed: true`.
+- Deduction takes from the fridge first, then the pantry. If stock is short, the item is floored at zero (never negative) and the response lists `requested`, `deducted`, and `short` per ingredient; ingredient lines with no parseable quantity are returned as `untracked` and not deducted.
+- A cooked meal's day and servings are fixed, and it cannot be removed from the week (409).
+- `PUT /inventory/{id}` with `{"quantity": "1 1/2"}` sets a stock row to an absolute quantity in its display unit as a manual correction (`0` empties it; an invalid quantity returns 400, an unknown id 404). It does not touch reservations or cook history.
 
 See `backend/README.md` for endpoint details.
 

@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from datetime import date, timedelta
@@ -102,11 +103,57 @@ def add_meal_to_week(db: Session, week_plan_id: int, meal_id: int, servings: Opt
     return week_plan
 
 
+def _reject_cooked(db: Session, week_plan_id: int, meal_id: int):
+    cooked = db.query(models.WeekMeal).filter_by(
+        week_plan_id=week_plan_id, meal_id=meal_id, status="cooked"
+    ).first()
+    if cooked:
+        raise HTTPException(409, "This meal is already cooked and cannot be removed.")
+
+
+def _planned_row(db: Session, week_plan_id: int, meal_id: int):
+    row = db.query(models.WeekMeal).filter_by(
+        week_plan_id=week_plan_id, meal_id=meal_id
+    ).first()
+    if not row:
+        raise HTTPException(404, "Meal is not planned in this week")
+    return row
+
+
+def set_week_meal_day(db: Session, week_plan_id: int, meal_id: int, day_id: Optional[int]):
+    """Assign (or with None, unassign) the day a planned meal is for. Never touches stock."""
+    row = _planned_row(db, week_plan_id, meal_id)
+    if row.status == "cooked":
+        raise HTTPException(409, "This meal is already cooked; its day is fixed.")
+    if day_id is not None:
+        day = db.query(models.Day).filter_by(id=day_id, week_plan_id=week_plan_id).first()
+        if not day:
+            raise HTTPException(400, "Choose a day in this week.")
+    row.day_id = day_id
+    db.commit()
+    week_plan = db.query(models.WeekPlan).filter(models.WeekPlan.id == week_plan_id).first()
+    db.refresh(week_plan)
+    return week_plan
+
+
+def set_week_meal_status(db: Session, week_plan_id: int, meal_id: int, status: str):
+    """Mark a planned meal planned or skipped. Cooking has its own endpoint."""
+    row = _planned_row(db, week_plan_id, meal_id)
+    if row.status == "cooked":
+        raise HTTPException(409, "This meal is already cooked.")
+    row.status = status
+    db.commit()
+    week_plan = db.query(models.WeekPlan).filter(models.WeekPlan.id == week_plan_id).first()
+    db.refresh(week_plan)
+    return week_plan
+
+
 def remove_meal_from_week(db: Session, week_plan_id: int, meal_id: int):
     week_plan = db.query(models.WeekPlan).filter(models.WeekPlan.id == week_plan_id).first()
     meal = db.query(models.Meal).filter(models.Meal.id == meal_id).first()
 
     if week_plan and meal and meal in week_plan.meals:
+        _reject_cooked(db, week_plan_id, meal_id)
         db.query(models.WeekMeal).filter_by(
             week_plan_id=week_plan_id, meal_id=meal_id
         ).delete()
@@ -124,6 +171,8 @@ def update_week_meal_servings(db: Session, week_plan_id: int, meal_id: int, serv
     ).all()
     if not rows:
         return None
+    if any(row.status == "cooked" for row in rows):
+        raise HTTPException(409, "This meal is already cooked; its servings are fixed.")
     for row in rows:
         row.servings = servings
     db.commit()

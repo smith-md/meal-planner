@@ -13,6 +13,11 @@ class WeekMeal(Base):
     week_plan_id = Column(Integer, ForeignKey("week_plans.id"))
     meal_id = Column(Integer, ForeignKey("meals.id"))
     servings = Column(Integer, nullable=True)
+    day_id = Column(Integer, ForeignKey("days.id"), nullable=True)
+    # NULL means planned; otherwise "planned", "cooked" or "skipped".
+    status = Column(String, nullable=True)
+    cooked_servings = Column(Integer, nullable=True)  # frozen when the meal is cooked
+    cooked_at = Column(DateTime, nullable=True)
 
     meal = relationship("Meal")
 
@@ -41,6 +46,7 @@ class WeekPlan(Base):
     # Read-only views; writes go through WeekMeal rows (see crud).
     meals = relationship("Meal", secondary="week_meals", back_populates="week_plans", viewonly=True)
     meal_servings = relationship("WeekMeal", viewonly=True, order_by="WeekMeal.id")
+    meal_schedule = relationship("WeekMeal", viewonly=True, order_by="WeekMeal.id")
 
 
 class Day(Base):
@@ -90,3 +96,18 @@ class InventoryPurchase(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     inventory_item = relationship("InventoryItem")
+
+
+class InventoryConsumption(Base):
+    """What cooking a meal took from stock, per ingredient. Written in the cook transaction."""
+    __tablename__ = "inventory_consumptions"
+    __table_args__ = (UniqueConstraint("week_meal_id", "item", "unit_group"),)
+
+    id = Column(Integer, primary_key=True)
+    week_meal_id = Column(Integer, ForeignKey("week_meals.id"), nullable=False, index=True)
+    item = Column(String, nullable=False)
+    unit_group = Column(String, nullable=False)
+    unit = Column(String, nullable=False)
+    requested_base = Column(Float, nullable=False)
+    deducted_base = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))

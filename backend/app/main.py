@@ -91,6 +91,23 @@ def remove_meal_from_week(week_plan_id: int, meal_id: int, db: Session = Depends
     return week_plan
 
 
+@app.put("/week-plans/{week_plan_id}/meals/{meal_id}/day", response_model=schemas.WeekPlan)
+def set_week_meal_day(week_plan_id: int, meal_id: int, data: schemas.WeekMealDayUpdate,
+                      db: Session = Depends(get_db)):
+    return crud.set_week_meal_day(db, week_plan_id, meal_id, data.day_id)
+
+
+@app.put("/week-plans/{week_plan_id}/meals/{meal_id}/status", response_model=schemas.WeekPlan)
+def set_week_meal_status(week_plan_id: int, meal_id: int, data: schemas.WeekMealStatusUpdate,
+                         db: Session = Depends(get_db)):
+    return crud.set_week_meal_status(db, week_plan_id, meal_id, data.status)
+
+
+@app.post("/week-plans/{week_plan_id}/meals/{meal_id}/cook", response_model=schemas.CookResult)
+def cook_week_meal(week_plan_id: int, meal_id: int, db: Session = Depends(get_db)):
+    return inventory.cook_week_meal(db, week_plan_id, meal_id)
+
+
 @app.get("/week-plans/{week_plan_id}/shopping-list")
 def get_shopping_list(week_plan_id: int, db: Session = Depends(get_db)):
     """Get aggregated shopping list with smart quantity combining."""
@@ -127,6 +144,16 @@ def track_ingredient(week_plan_id: int, data: schemas.PairingIngredientCreate, d
 @app.get("/inventory", response_model=List[schemas.InventoryItem])
 def get_inventory(db: Session = Depends(get_db)):
     return [inventory.serialize_item(row) for row in inventory.list_inventory(db)]
+
+
+@app.get("/inventory/availability", response_model=List[schemas.InventoryAvailability])
+def get_inventory_availability(ref_date: Optional[date] = None, db: Session = Depends(get_db)):
+    return inventory.availability(db, ref_date)
+
+
+@app.put("/inventory/{item_id}", response_model=schemas.InventoryItem)
+def set_inventory_quantity(item_id: int, data: schemas.InventoryQuantityUpdate, db: Session = Depends(get_db)):
+    return inventory.serialize_item(inventory.set_quantity(db, item_id, data.quantity))
 
 
 @app.post("/inventory/purchases", response_model=schemas.InventoryPurchase)

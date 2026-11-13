@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
-import { getCurrentWeekPlan, updateDayState, addMealToWeek, removeMealFromWeek, fetchMeals, updateWeekMealServings } from '../api';
+import {
+  getCurrentWeekPlan, updateDayState, addMealToWeek, removeMealFromWeek, fetchMeals,
+  updateWeekMealServings, setWeekMealDay, setWeekMealStatus, cookWeekMeal
+} from '../api';
 import MealPickerModal from './MealPickerModal';
 import MealPairings from './MealPairings';
 import './WeekPlanner.css';
 
-function ServingsInput({ meal, servings, onCommit }) {
+function ServingsInput({ meal, servings, onCommit, disabled }) {
   const [draft, setDraft] = useState(servings ?? '');
   const [error, setError] = useState('');
 
@@ -33,6 +36,7 @@ function ServingsInput({ meal, servings, onCommit }) {
           step="1"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
+          disabled={disabled}
           onBlur={commit}
           onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
           aria-label={`Planned servings for ${meal.name}`}
@@ -54,6 +58,7 @@ function WeekPlanner() {
   const [nextWeek, setNextWeek] = useState(false);
   const [error, setError] = useState('');
   const [pairingSource, setPairingSource] = useState('');
+  const [messages, setMessages] = useState({});
 
   useEffect(() => {
     loadWeekPlan();
@@ -109,8 +114,62 @@ function WeekPlanner() {
 
   const handleRemoveMeal = async (mealId) => {
     if (weekPlan) {
-      await removeMealFromWeek(weekPlan.id, mealId);
+      try {
+        await removeMealFromWeek(weekPlan.id, mealId);
+        await loadWeekPlan();
+      } catch (err) {
+        setMealMessage(mealId, err.message);
+      }
+    }
+  };
+
+  const scheduleFor = (meal) => (
+    (weekPlan.meal_schedule || []).find(entry => entry.meal_id === meal.id)
+    || { day_id: null, status: 'planned', cooked_servings: null }
+  );
+
+  const setMealMessage = (mealId, text) => setMessages(prev => ({ ...prev, [mealId]: text }));
+
+  const runMealAction = async (mealId, action) => {
+    setMealMessage(mealId, '');
+    try {
+      const result = await action();
+      if (result && result.meal_schedule) setWeekPlan(result);
+      return result;
+    } catch (err) {
+      setMealMessage(mealId, err.message);
+      return null;
+    }
+  };
+
+  const handleDayChange = (meal, value) => runMealAction(meal.id, () =>
+    setWeekMealDay(weekPlan.id, meal.id, value === '' ? null : Number(value)));
+
+  const handleSkipToggle = (meal, schedule) => runMealAction(meal.id, () =>
+    setWeekMealStatus(weekPlan.id, meal.id, schedule.status === 'skipped' ? 'planned' : 'skipped'));
+
+  const handleCook = async (meal, schedule) => {
+    const servings = servingsFor(meal);
+    const day = weekPlan.days.find(d => d.id === schedule.day_id);
+    const what = servings != null ? `${servings} servings of ${meal.name}` : meal.name;
+    if (!window.confirm(`Mark ${what} cooked${day ? ` on ${day.day_name}` : ''}? This uses up the ingredients from your inventory.`)) {
+      return;
+    }
+    setMealMessage(meal.id, '');
+    try {
+      const result = await cookWeekMeal(weekPlan.id, meal.id);
+      const notes = [];
+      const short = result.deductions.filter(d => d.short);
+      if (short.length) {
+        notes.push(`Not enough in stock: ${short.map(d => `${d.item} (short ${d.short}${d.unit ? ` ${d.unit}` : ''})`).join(', ')}.`);
+      }
+      if (result.untracked.length) {
+        notes.push(`Not deducted (no measurable amount): ${result.untracked.join(', ')}.`);
+      }
+      setMealMessage(meal.id, notes.join(' '));
       await loadWeekPlan();
+    } catch (err) {
+      setMealMessage(meal.id, err.message);
     }
   };
 
@@ -197,29 +256,80 @@ function WeekPlanner() {
           {(!weekPlan.meals || weekPlan.meals.length === 0) ? (
             <p className="no-meals">No meals added yet. Click "Add Meal to Week" to get started!</p>
           ) : (
-            weekPlan.meals.map(meal => (
-              <div key={meal.id} className="week-meal-item">
-                <div className="meal-info">
-                  <h4>{meal.name}</h4>
-                  {meal.tags && <span className="meal-tags">{meal.tags}</span>}
-                  {meal.notes && <p className="meal-notes">{meal.notes}</p>}
-                  <ServingsInput
-                    key={`${meal.id}-${servingsFor(meal) ?? ''}`}
-                    meal={meal}
-                    servings={servingsFor(meal)}
-                    onCommit={handleServingsChange}
-                  />
-                  <a href="#pairing-heading" onClick={() => setPairingSource(String(meal.id))}>Find a meal for leftover ingredients</a>
+            weekPlan.meals.map(meal => {
+              const schedule = scheduleFor(meal);
+              const cooked = schedule.status === 'cooked';
+              const skipped = schedule.status === 'skipped';
+              const day = weekPlan.days.find(d => d.id === schedule.day_id);
+              return (
+                <div key={meal.id} className={`week-meal-item ${schedule.status}`}>
+                  <div className="meal-info">
+                    <h4>
+                      {meal.name}{' '}
+                      <span className={`status-badge ${schedule.status}`}>
+                        {cooked
+                          ? `Cooked${day ? ` ${day.day_name}` : ''}${schedule.cooked_servings != null ? ` (${schedule.cooked_servings} servings)` : ''}`
+                          : skipped ? 'Skipped' : 'Planned'}
+                      </span>
+                    </h4>
+                    {meal.tags && <span className="meal-tags">{meal.tags}</span>}
+                    {meal.notes && <p className="meal-notes">{meal.notes}</p>}
+                    <ServingsInput
+                      key={`${meal.id}-${servingsFor(meal) ?? ''}-${cooked}`}
+                      meal={meal}
+                      servings={servingsFor(meal)}
+                      onCommit={handleServingsChange}
+                      disabled={cooked}
+                    />
+                    <div className="meal-schedule">
+                      <label>
+                        Day{' '}
+                        <select
+                          value={schedule.day_id ?? ''}
+                          disabled={cooked}
+                          onChange={(e) => handleDayChange(meal, e.target.value)}
+                          aria-label={`Day for ${meal.name}`}
+                        >
+                          <option value="">Unscheduled</option>
+                          {weekPlan.days.map(d => (
+                            <option key={d.id} value={d.id}>{d.day_name}</option>
+                          ))}
+                        </select>
+                      </label>
+                      {!cooked && (
+                        <button
+                          type="button"
+                          className="cook-btn"
+                          disabled={schedule.day_id == null || skipped}
+                          title={schedule.day_id == null ? 'Choose a day first' : skipped ? 'Unskip first' : 'Use up the ingredients'}
+                          onClick={() => handleCook(meal, schedule)}
+                        >
+                          Mark cooked
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="skip-btn"
+                        disabled={cooked}
+                        onClick={() => handleSkipToggle(meal, schedule)}
+                      >
+                        {skipped ? 'Unskip' : 'Skip'}
+                      </button>
+                    </div>
+                    {messages[meal.id] && <p role="alert" className="cook-message">{messages[meal.id]}</p>}
+                    <a href="#pairing-heading" onClick={() => setPairingSource(String(meal.id))}>Find a meal for leftover ingredients</a>
+                  </div>
+                  <button
+                    className="remove-btn"
+                    onClick={() => handleRemoveMeal(meal.id)}
+                    disabled={cooked}
+                    title={cooked ? 'Cooked meals cannot be removed' : 'Remove from week'}
+                  >
+                    ×
+                  </button>
                 </div>
-                <button
-                  className="remove-btn"
-                  onClick={() => handleRemoveMeal(meal.id)}
-                  title="Remove from week"
-                >
-                  ×
-                </button>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
