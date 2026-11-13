@@ -110,3 +110,27 @@ export async function removeTrackedIngredient(id) {
   const response = await fetch(`${API_BASE_URL}/pairing-ingredients/${id}`, { method: 'DELETE' });
   if (!response.ok) throw new Error('Could not remove the ingredient.');
 }
+
+export async function getInventory() {
+  const response = await fetch(`${API_BASE_URL}/inventory`);
+  if (!response.ok) throw new Error(await failureMessage(response, 'Could not load the inventory.'));
+  return response.json();
+}
+
+export async function recordPurchase(purchaseId, amount, location) {
+  const response = await fetch(`${API_BASE_URL}/inventory/purchases`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ purchase_id: purchaseId, amount, location })
+  });
+  if (!response.ok) throw new Error(await failureMessage(response, 'Enter an amount like 2 cups of rice and choose fridge or pantry.'));
+  return response.json();
+}
+
+export async function revertPurchase(purchaseId) {
+  const response = await fetch(`${API_BASE_URL}/inventory/purchases/${encodeURIComponent(purchaseId)}`, {
+    method: 'DELETE'
+  });
+  if (!response.ok) throw new Error(await failureMessage(response, 'Could not undo the purchase.'));
+  return response.json();
+}

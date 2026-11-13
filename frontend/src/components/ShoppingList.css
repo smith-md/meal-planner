@@ -268,3 +268,89 @@
     padding: 1rem;
   }
 }
+
+.item-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.credit-note {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: #4caf50;
+}
+
+.item .edit-credit {
+  width: auto;
+  border-radius: 16px;
+  background: #666;
+  padding: 0 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.checkout-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+.checkout-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+.checkout-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+.checkout-panel input,
+.checkout-panel select {
+  padding: 0.625rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+.checkout-error {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #ff4757;
+}
+
+.checkout-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.checkout-actions button {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #f9f9f9;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  touch-action: manipulation;
+}
+
+.checkout-actions .checkout-save {
+  background: #4caf50;
+  border-color: #4caf50;
+  color: white;
+}
+
+.checkout-actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

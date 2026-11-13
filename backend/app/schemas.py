@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import date
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 
 class MealBase(BaseModel):
@@ -119,3 +119,26 @@ class RecipeImportResponse(BaseModel):
     tags: Optional[str] = None
     ingredients: Optional[str] = None
     yield_servings: Optional[int] = None
+
+
+class InventoryItem(BaseModel):
+    id: int
+    item: str
+    unit: str
+    quantity: str
+    location: str
+
+
+class InventoryPurchaseCreate(BaseModel):
+    purchase_id: str = Field(min_length=8, max_length=64)
+    amount: str = Field(min_length=1, max_length=200)
+    location: Literal["fridge", "pantry"]
+
+
+class InventoryPurchase(BaseModel):
+    purchase_id: str
+    amount: str
+    location: str
+    reverted: bool
+    replayed: bool
+    inventory: InventoryItem

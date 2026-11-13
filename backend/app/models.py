@@ -1,4 +1,6 @@
-from sqlalchemy import Column, Integer, String, Date, ForeignKey
+from datetime import datetime, timezone
+
+from sqlalchemy import Column, Integer, String, Date, ForeignKey, Float, Boolean, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -60,3 +62,31 @@ class PairingIngredient(Base):
     week_plan_id = Column(Integer, ForeignKey("week_plans.id"), nullable=False, index=True)
     meal_id = Column(Integer, ForeignKey("meals.id"), nullable=True)
     amount = Column(String, nullable=False)
+
+
+class InventoryItem(Base):
+    """Running fridge/pantry stock. Global: deliberately has no week foreign key."""
+    __tablename__ = "inventory_items"
+    __table_args__ = (UniqueConstraint("item", "unit_group", "location"),)
+
+    id = Column(Integer, primary_key=True)
+    item = Column(String, nullable=False)
+    unit_group = Column(String, nullable=False)
+    unit = Column(String, nullable=False)  # display unit from the first credit
+    location = Column(String, nullable=False)  # "fridge" or "pantry"
+    base_quantity = Column(Float, nullable=False, default=0.0)
+
+
+class InventoryPurchase(Base):
+    """One credited purchase. purchase_id is single-use, which makes crediting idempotent."""
+    __tablename__ = "inventory_purchases"
+
+    id = Column(Integer, primary_key=True)
+    purchase_id = Column(String, unique=True, nullable=False, index=True)
+    inventory_item_id = Column(Integer, ForeignKey("inventory_items.id"), nullable=False)
+    amount = Column(String, nullable=False)
+    base_quantity = Column(Float, nullable=False)
+    reverted = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+
+    inventory_item = relationship("InventoryItem")
