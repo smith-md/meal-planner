@@ -76,6 +76,15 @@ The app will be available at
 - Set `DATABASE_URL` to override the default SQLite file (`sqlite:///./meal_planner.db`). On startup the backend adds the `meals.yield_servings` and `week_meals.servings` columns to existing databases.
 - Backend tests: from `backend/`, run `pip install -r requirements-dev.txt` then `pytest`.
 
+### Fridge and pantry inventory
+
+- The backend keeps a running fridge/pantry inventory in SQLite (tables `inventory_items` and `inventory_purchases`, created at startup). It is global, not tied to any week, so it survives clearing the shopping list and opening new weeks.
+- `GET /inventory` lists stock as `{id, item, unit, quantity, location}` (location is `fridge` or `pantry`). Compatible units are combined; separate unit groups (for example cups vs. whole onions) stay separate rows.
+- `POST /inventory/purchases` with `{"purchase_id", "amount", "location"}` credits an amount such as `"2 cups rice"`. `purchase_id` is a client-generated, single-use id (8-64 characters): repeating a request with the same id never credits again. An amount without a leading quantity returns 400; a missing or invalid location returns 422.
+- `DELETE /inventory/purchases/{purchase_id}` reverts that credit (never below zero). A reverted id cannot be credited again.
+- In the Shopping List, checking an item credits it immediately when the quantity and location are known; otherwise an inline panel asks for the amount and fridge/pantry. Unchecking a credited item reverts it, and "Edit" on a purchased row reverts it and reopens the panel. The panel also offers "Mark purchased without adding to inventory". Items already marked purchased before this feature are not credited.
+- The shopping list calculation is not reduced by inventory, and cooking a meal does not use up stock yet.
+
 See `backend/README.md` for endpoint details.
 
 ## Future Enhancements

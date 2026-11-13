@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-from . import models, schemas, crud, pairings
+from . import models, schemas, crud, pairings, inventory
 from .database import engine, get_db, ensure_columns
 
 models.Base.metadata.create_all(bind=engine)
@@ -122,6 +122,22 @@ def track_ingredient(week_plan_id: int, data: schemas.PairingIngredientCreate, d
     db.add(models.PairingIngredient(week_plan_id=week.id, meal_id=data.meal_id, amount=data.amount.strip()))
     db.commit()
     return pairings.get_pairings(db, week)
+
+
+@app.get("/inventory", response_model=List[schemas.InventoryItem])
+def get_inventory(db: Session = Depends(get_db)):
+    return [inventory.serialize_item(row) for row in inventory.list_inventory(db)]
+
+
+@app.post("/inventory/purchases", response_model=schemas.InventoryPurchase)
+def create_inventory_purchase(data: schemas.InventoryPurchaseCreate, db: Session = Depends(get_db)):
+    purchase, replayed = inventory.credit_purchase(db, data.purchase_id, data.amount, data.location)
+    return inventory.serialize_purchase(purchase, replayed)
+
+
+@app.delete("/inventory/purchases/{purchase_id}", response_model=schemas.InventoryPurchase)
+def revert_inventory_purchase(purchase_id: str, db: Session = Depends(get_db)):
+    return inventory.serialize_purchase(inventory.revert_purchase(db, purchase_id), False)
 
 
 @app.delete("/pairing-ingredients/{ingredient_id}", status_code=204)
