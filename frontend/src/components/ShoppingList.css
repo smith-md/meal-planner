@@ -354,3 +354,583 @@
   opacity: 0.6;
   cursor: default;
 }
+
+/* ---- Reconcile screen (issue #5). New badges are <small>/<b>, not spans inside .item, so the
+   `.item span` flex rule above does not stretch them. All new controls are at least 44px tall. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.clear-btn {
+  min-height: 44px;
+}
+
+.clear-btn:disabled {
+  opacity: 0.6;
+}
+
+.shopping-list h3.checklist-title {
+  margin: 1.5rem 0 0.75rem;
+  color: #333;
+  font-size: 1.125rem;
+}
+
+.week-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: 0 -0.25rem 0.75rem;
+  padding: 0.5rem 0.25rem 0.25rem;
+  background: white;
+  border-bottom: 1px solid #eee;
+}
+
+.week-selector {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.week-option {
+  flex: 1;
+  min-height: 48px;
+  padding: 0.5rem 0.75rem;
+  background: #f1f1f8;
+  color: #333;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.week-option.selected {
+  background: #667eea;
+  color: white;
+  font-weight: 700;
+}
+
+.week-option:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.week-range {
+  margin: 0.375rem 0 0;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+.review-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-bottom: 0.5rem;
+}
+
+.review-open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  background: #2196f3;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.review-open:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.count-badge {
+  min-width: 1.5rem;
+  padding: 0.125rem 0.5rem;
+  background: white;
+  color: #1976d2;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.review-summary {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #666;
+  text-align: center;
+}
+
+.flash {
+  min-height: 1.25rem;
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: #2e7d32;
+}
+
+.needs-section {
+  margin-bottom: 1.25rem;
+}
+
+.needs-section h3 {
+  margin: 0 0 0.75rem;
+  color: #333;
+  font-size: 1.125rem;
+}
+
+.need-group {
+  margin-bottom: 0.75rem;
+}
+
+.need-group-title,
+.need-group > summary {
+  margin: 0 0 0.5rem;
+  font-size: 0.9375rem;
+  color: #666;
+  font-weight: 600;
+}
+
+.need-group > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.need-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding: 0.875rem;
+  background: #f9f9f9;
+  border-radius: 8px;
+}
+
+.need-card h4 {
+  margin: 0;
+  font-size: 1rem;
+  color: #333;
+  word-break: break-word;
+}
+
+.need-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.need-figures {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.need-figures div {
+  display: flex;
+  flex-direction: column-reverse;
+  min-width: 0;
+}
+
+.need-figures dt {
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.need-figures dd {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: #333;
+  word-break: break-word;
+}
+
+.need-figures .need-still dd {
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+
+.need-meals,
+.need-hint,
+.need-details p {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #666;
+  line-height: 1.4;
+}
+
+.need-details ul {
+  margin: 0 0 0.5rem;
+  padding-left: 1.25rem;
+  font-size: 0.8125rem;
+  color: #333;
+}
+
+.need-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.need-badges,
+.need-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.need-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.need-badge-warning {
+  background: #fff3e0;
+  color: #8a4b00;
+  border: 1px solid #ffb74d;
+}
+
+.need-badge-ok {
+  background: #e8f5e9;
+  color: #1b5e20;
+  border: 1px solid #a5d6a7;
+}
+
+.need-add,
+.need-secondary,
+.minimum-actions button,
+.review-actions button,
+.undo-snackbar button {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background: #fff;
+  color: #333;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.need-add {
+  width: 100%;
+  background: #4caf50;
+  border-color: #4caf50;
+  color: white;
+  font-weight: 600;
+}
+
+.need-add:disabled,
+.need-secondary:disabled,
+.minimum-actions button:disabled,
+.review-actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.need-yield-hint {
+  text-align: left;
+}
+
+.need-all-good {
+  margin: 0 0 0.75rem;
+  padding: 0.75rem;
+  background: #e8f5e9;
+  border-radius: 8px;
+  color: #1b5e20;
+  font-size: 0.9375rem;
+}
+
+.minimum-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+.minimum-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+.minimum-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.minimum-field input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.625rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+.minimum-unit {
+  font-size: 0.875rem;
+  color: #333;
+}
+
+.minimum-current {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+.minimum-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.minimum-actions .minimum-save {
+  background: #4caf50;
+  border-color: #4caf50;
+  color: white;
+}
+
+.inline-error,
+.migration-banner {
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  background: #fff4f4;
+  border: 1px solid #ffb3b8;
+  border-radius: 8px;
+  color: #8a1c24;
+  font-size: 0.875rem;
+}
+
+.inline-error p,
+.migration-banner p {
+  margin: 0 0 0.5rem;
+}
+
+.entry-tag {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 3px;
+  background: #e3f2fd;
+  color: #0d47a1;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.item button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Review changes: bottom sheet on phones, inline panel from 768px. */
+.review-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40; /* above the undo snackbar (30) so the sheet actions stay reachable */
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.review-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+  background: white;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.review-sheet h3 {
+  margin: 0;
+  padding: 1rem 1rem 0.5rem;
+  font-size: 1.125rem;
+  color: #333;
+}
+
+.review-sheet h3:focus {
+  outline: none;
+}
+
+.review-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 1rem;
+}
+
+.review-group h4 {
+  margin: 0.75rem 0 0.375rem;
+  font-size: 0.9375rem;
+  color: #333;
+}
+
+.review-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.review-group li {
+  padding: 0.375rem 0;
+  border-bottom: 1px solid #eee;
+  font-size: 0.9375rem;
+  color: #333;
+  word-break: break-word;
+}
+
+.review-group li b {
+  display: inline-block;
+  width: 1rem;
+  font-weight: 700;
+}
+
+.review-detail,
+.review-note {
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+.review-note {
+  margin: 0 0 0.25rem;
+}
+
+.review-empty {
+  margin: 1rem 0;
+  color: #333;
+}
+
+.review-error {
+  margin: 0 0 0.75rem;
+  padding: 0.625rem;
+  background: #fff4f4;
+  border: 1px solid #ffb3b8;
+  border-radius: 8px;
+  color: #8a1c24;
+  font-size: 0.875rem;
+}
+
+.review-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  background: white;
+  border-top: 1px solid #eee;
+}
+
+.review-actions button {
+  flex: 1;
+}
+
+.review-actions .review-apply {
+  flex: 2;
+  background: #2196f3;
+  border-color: #2196f3;
+  color: white;
+  font-weight: 600;
+}
+
+.undo-snackbar {
+  position: fixed;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #333;
+  color: white;
+  border-radius: 8px;
+  font-size: 0.9375rem;
+}
+
+.undo-snackbar span {
+  flex: 1;
+}
+
+.undo-snackbar button {
+  background: transparent;
+  border-color: #888;
+  color: white;
+}
+
+.undo-snackbar .undo-dismiss {
+  min-width: 44px;
+  padding: 0;
+}
+
+@media (min-width: 768px) {
+  .review-bar {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .review-open {
+    width: auto;
+  }
+
+  .review-summary {
+    text-align: left;
+  }
+
+  .review-sheet {
+    position: static;
+    max-height: none;
+    margin-bottom: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: none;
+  }
+
+  .review-body {
+    max-height: 50vh;
+  }
+
+  .need-add {
+    width: auto;
+    align-self: flex-start;
+  }
+
+  .undo-snackbar {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    min-width: 320px;
+  }
+}
+
+/* Keep the last row clear of the fixed undo snackbar. */
+.shopping-list.has-undo {
+  padding-bottom: 5rem;
+}

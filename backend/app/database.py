@@ -24,12 +24,15 @@ _ADDED_COLUMNS = (
     ("week_meals", "status", "VARCHAR"),
     ("week_meals", "cooked_servings", "INTEGER"),
     ("week_meals", "cooked_at", "DATETIME"),
+    ("inventory_items", "minimum", "FLOAT"),
 )
 
 
 def ensure_columns(bind):
     """Idempotently add columns that older databases lack."""
     for table, column, ddl_type in _ADDED_COLUMNS:
+        if not inspect(bind).has_table(table):
+            continue  # create_all builds a missing table with every column
         existing = {c["name"] for c in inspect(bind).get_columns(table)}
         if column not in existing:
             with bind.begin() as connection:
