@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Integer, String, Date, ForeignKey, Float, Boolean, DateTime, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Date, ForeignKey, Float, Boolean, DateTime, Index, UniqueConstraint
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -81,6 +81,9 @@ class InventoryItem(Base):
     unit = Column(String, nullable=False)  # display unit from the first credit
     location = Column(String, nullable=False)  # "fridge" or "pantry"
     base_quantity = Column(Float, nullable=False, default=0.0)
+    # Restock threshold in base units. NULL means not a staple; a value (0 included) makes
+    # the item a tracked staple.
+    minimum = Column(Float, nullable=True)
 
 
 class InventoryPurchase(Base):
@@ -111,3 +114,31 @@ class InventoryConsumption(Base):
     requested_base = Column(Float, nullable=False)
     deducted_base = Column(Float, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+
+
+class GroceryEntry(Base):
+    """One line on the shared grocery checklist. entry_key is stable, so repeat writes are idempotent.
+
+    source: "manual" (typed by the user), "added" (from an ingredient row), "plan" (written by
+    reconcile for one week) or "legacy" (migrated from the old browser-only list).
+    """
+    __tablename__ = "grocery_entries"
+    __table_args__ = (Index("ix_grocery_entries_item_group", "item", "unit_group"),)
+
+    id = Column(Integer, primary_key=True)
+    entry_key = Column(String, unique=True, nullable=False, index=True)
+    source = Column(String, nullable=False)
+    week_plan_id = Column(Integer, ForeignKey("week_plans.id"), nullable=True)
+    name = Column(String, nullable=False)
+    item = Column(String, nullable=True)
+    unit_group = Column(String, nullable=True)
+    unit = Column(String, nullable=True)
+    quantity_base = Column(Float, nullable=True)
+    note = Column(String, nullable=True)
+    purchased = Column(Boolean, nullable=False, default=False)
+    purchase_id = Column(String, nullable=False)
+    credit_amount = Column(String, nullable=True)
+    credit_location = Column(String, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+
+    week_plan = relationship("WeekPlan")

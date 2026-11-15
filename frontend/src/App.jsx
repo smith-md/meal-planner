@@ -34,7 +34,7 @@ function App() {
 
       {currentView === 'planner' && <WeekPlanner />}
       {currentView === 'meals' && <MealsLibrary />}
-      {currentView === 'shopping' && <ShoppingList />}
+      {currentView === 'shopping' && <ShoppingList onOpenPlanner={() => setCurrentView('planner')} />}
     </div>
   );
 }

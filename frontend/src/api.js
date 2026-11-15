@@ -167,3 +167,73 @@ export async function revertPurchase(purchaseId) {
   if (!response.ok) throw new Error(await failureMessage(response, 'Could not undo the purchase.'));
   return response.json();
 }
+
+// Grocery list, reconcile and minimums. Errors carry the server message and an HTTP status.
+async function request(url, options, fallback) {
+  let response;
+  try {
+    response = await fetch(url, options);
+  } catch (error) {
+    throw new Error('Could not reach the server.');
+  }
+  if (!response.ok) {
+    const error = new Error(await failureMessage(response, fallback));
+    error.status = response.status;
+    throw error;
+  }
+  return response.status === 204 ? null : response.json();
+}
+
+function jsonOptions(method, body) {
+  return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+}
+
+export function listGroceryEntries() {
+  return request(`${API_BASE_URL}/grocery-entries`, undefined, 'Could not load your shopping list.');
+}
+
+export function createGroceryEntry(body) {
+  return request(`${API_BASE_URL}/grocery-entries`, jsonOptions('POST', body), 'Could not add the item.');
+}
+
+export function updateGroceryEntry(id, changes) {
+  return request(`${API_BASE_URL}/grocery-entries/${id}`, jsonOptions('PATCH', changes),
+    'Could not save the item.');
+}
+
+export function deleteGroceryEntry(id) {
+  return request(`${API_BASE_URL}/grocery-entries/${id}`, { method: 'DELETE' }, 'Could not remove the item.');
+}
+
+export function clearPurchasedEntries() {
+  return request(`${API_BASE_URL}/grocery-entries?purchased=true`, { method: 'DELETE' },
+    'Could not clear the purchased items.');
+}
+
+export function importLocalEntries(entries) {
+  return request(`${API_BASE_URL}/grocery-entries/import-local`, jsonOptions('POST', { entries }),
+    'Could not move your saved list.');
+}
+
+export function undoGroceryChanges(undo) {
+  return request(`${API_BASE_URL}/grocery-entries/undo`, jsonOptions('POST', undo), 'Could not undo that.');
+}
+
+export function getReconcile(weekPlanId) {
+  return request(`${API_BASE_URL}/week-plans/${weekPlanId}/reconcile`, undefined,
+    'Could not load what this week needs.');
+}
+
+export function applyReconcile(weekPlanId, fingerprint) {
+  return request(`${API_BASE_URL}/week-plans/${weekPlanId}/reconcile`,
+    jsonOptions('POST', { fingerprint }), 'Could not apply the changes.');
+}
+
+export function getStaples() {
+  return request(`${API_BASE_URL}/inventory/staples`, undefined, 'Could not load your staples.');
+}
+
+export function setInventoryMinimum(itemId, minimum) {
+  return request(`${API_BASE_URL}/inventory/${itemId}/minimum`, jsonOptions('PUT', { minimum }),
+    'Enter a quantity like 2 or 1/2.');
+}

@@ -6,7 +6,7 @@ A personal web application for weekly meal planning, shared grocery list managem
 
 - **Week Planner**: Plan meals for each day of the week with visual day states (Need Meal / No Meal / Neutral)
 - **Meal Library**: Create and search meals with tags, notes, and ingredients
-- **Shopping List**: Shared shopping list with localStorage persistence
+- **Shopping**: A server-side shopping list that keeps manual items and purchase state, plus a This week / Next week view that compares what the planned meals need with your stock, warns about low staples and shortfalls, and previews list changes before applying them
 - **Recipe yields and planned servings**: Each recipe can store how many servings it makes, and each planned meal has its own servings; the shopping list and pairings scale to match
 - **Clean UI**: Modern design with light gradients and intuitive interactions
 
@@ -82,8 +82,8 @@ The app will be available at
 - `GET /inventory` lists stock as `{id, item, unit, quantity, location}` (location is `fridge` or `pantry`). Compatible units are combined; separate unit groups (for example cups vs. whole onions) stay separate rows.
 - `POST /inventory/purchases` with `{"purchase_id", "amount", "location"}` credits an amount such as `"2 cups rice"`. `purchase_id` is a client-generated, single-use id (8-64 characters): repeating a request with the same id never credits again. An amount without a leading quantity returns 400; a missing or invalid location returns 422.
 - `DELETE /inventory/purchases/{purchase_id}` reverts that credit (never below zero). A reverted id cannot be credited again.
-- In the Shopping List, checking an item credits it immediately when the quantity and location are known; otherwise an inline panel asks for the amount and fridge/pantry. Unchecking a credited item reverts it, and "Edit" on a purchased row reverts it and reopens the panel. The panel also offers "Mark purchased without adding to inventory". Items already marked purchased before this feature are not credited.
-- The shopping list calculation and pairings are not reduced by inventory, and they ignore whether a meal is cooked or skipped.
+- On the Shopping screen, checking a list entry credits it immediately when the quantity and location are known (the location is known when the item is stocked in exactly one place); otherwise an inline panel asks for the amount and fridge/pantry. Unchecking a credited entry reverts it, and "Edit" on a purchased row reverts it and reopens the panel. The panel also offers "Mark purchased without adding to inventory". Items already marked purchased before this feature are not credited.
+- `GET /week-plans/{id}/shopping-list` and the pairings calculation are unchanged: they are not reduced by inventory, and they ignore whether a meal is cooked or skipped. Stock-aware figures come from the reconcile endpoints below.
 
 ### Assigning meals to days and cooking
 
@@ -93,6 +93,19 @@ The app will be available at
 - Deduction takes from the fridge first, then the pantry. If stock is short, the item is floored at zero (never negative) and the response lists `requested`, `deducted`, and `short` per ingredient; ingredient lines with no parseable quantity are returned as `untracked` and not deducted.
 - A cooked meal's day and servings are fixed, and it cannot be removed from the week (409).
 - `PUT /inventory/{id}` with `{"quantity": "1 1/2"}` sets a stock row to an absolute quantity in its display unit as a manual correction (`0` empties it; an invalid quantity returns 400, an unknown id 404). It does not touch reservations or cook history.
+
+### Shopping list, staples, and reconcile
+
+- The shopping list is stored on the server (table `grocery_entries`), not only in the browser. Each entry has a stable `entry_key`, so repeating a create or import never duplicates it. Entries come from `manual:` or `added:` keys (typed by you, or "Add to shopping list" on a need card), `plan:` keys (created by Review changes), or `legacy:` keys (migrated from the browser).
+- `GET /grocery-entries` lists entries; `POST /grocery-entries` creates one; `PATCH /grocery-entries/{id}` records `purchased` and the stock `credit`; `DELETE /grocery-entries/{id}` removes one; `DELETE /grocery-entries?purchased=true` clears purchased entries (any other call returns 400). `POST /grocery-entries/undo` restores the previous state from an undo payload.
+- Migration: on first load the Shopping screen sends any browser `shoppingList` localStorage items to `POST /grocery-entries/import-local` (idempotent per old item id; purchase state and credits are kept and nothing is credited again). On success the old value is copied to `shoppingList.migrated` and `shoppingList` is removed; on failure the items stay in the browser and a Retry button is shown.
+- Staples: `PUT /inventory/{id}/minimum` with `{"minimum": "2"}` sets the minimum to keep on hand for that ingredient (`0` warns only when it runs out; `null` clears it; an invalid value returns 400, an unknown id 404). `GET /inventory/staples` lists every stock row that has a minimum, including empty ones.
+- `GET /week-plans/{id}/reconcile` (optional `ref_date`) previews one week without writing anything; `POST /week-plans/{id}/reconcile` with `{"fingerprint": "..."}` applies exactly the previewed changes. Only this week or a later week can be reconciled (400 otherwise).
+- Stock is allocated week by week: weeks from the current one up to the selected week take what they need from the shared stock first, so the same stock never covers two weeks. Each ingredient row reports `demand`, `on_hand`, `held_for_earlier_weeks`, `available`, `to_buy`, and the meals that need it. Only planned meals count as demand (not skipped or cooked); inventory is the only stock source.
+- Warnings: `below_minimum` when stock is at or below the minimum, and `short` when demand is above the stock available to that week. Staples with a minimum that no planned meal uses are listed separately in `staples`.
+- `changes` lists `add`, `update` (`from_quantity` to `to_quantity`), and `remove` for this week's `plan:` entries. Purchased entries are never changed or removed, and an unpurchased manual, added, or legacy entry for the same ingredient counts as covering it, so no plan entry is added.
+- Apply returns 409 if the previewed changes are no longer the current ones, for example because the plan, list, or stock changed (nothing is written). A successful apply returns `entries`, a fresh `reconcile`, a `summary` of counts, and an `undo` payload (`null` when a change list exceeds 500 entries) for `POST /grocery-entries/undo`.
+- Shopping screen: a This week / Next week selector, then "Review changes" (opens a sheet listing adds, updates, and removals to apply or cancel), need cards showing Need / On hand / Still to buy with warning badges and an "Add ... to shopping list" button (ingredients already on the list show "On list", and ones fully covered by stock are grouped under "Covered by stock"), a Staples section with "Set minimum", the checklist for all weeks, and an Undo snackbar after removing an entry or applying changes.
 
 See `backend/README.md` for endpoint details.
 

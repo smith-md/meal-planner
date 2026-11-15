@@ -1,4 +1,8 @@
+import math
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -12,7 +16,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-from . import models, schemas, crud, pairings, inventory
+from . import models, schemas, crud, pairings, inventory, grocery, reconcile
 from .database import engine, get_db, ensure_columns
 
 models.Base.metadata.create_all(bind=engine)
@@ -28,6 +32,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _without_non_finite(value):
+    """Copy of value with every NaN/Infinity (at any depth) replaced by its text."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return str(value)
+    if isinstance(value, dict):
+        return {key: _without_non_finite(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_without_non_finite(item) for item in value]
+    return value
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request, exc):
+    """Like FastAPI's default 422, but a rejected NaN/Infinity is echoed as text.
+
+    The default echoes the raw input, and JSON cannot encode NaN, so the error response itself failed.
+    """
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(_without_non_finite(exc.errors()))})
 
 
 @app.get("/")
@@ -151,6 +175,16 @@ def get_inventory_availability(ref_date: Optional[date] = None, db: Session = De
     return inventory.availability(db, ref_date)
 
 
+@app.get("/inventory/staples", response_model=List[schemas.Staple])
+def get_staples(db: Session = Depends(get_db)):
+    return [inventory.serialize_staple(row) for row in inventory.list_staples(db)]
+
+
+@app.put("/inventory/{item_id}/minimum", response_model=schemas.Staple)
+def set_inventory_minimum(item_id: int, data: schemas.MinimumUpdate, db: Session = Depends(get_db)):
+    return inventory.serialize_staple(inventory.set_minimum(db, item_id, data.minimum))
+
+
 @app.put("/inventory/{item_id}", response_model=schemas.InventoryItem)
 def set_inventory_quantity(item_id: int, data: schemas.InventoryQuantityUpdate, db: Session = Depends(get_db)):
     return inventory.serialize_item(inventory.set_quantity(db, item_id, data.quantity))
@@ -165,6 +199,61 @@ def create_inventory_purchase(data: schemas.InventoryPurchaseCreate, db: Session
 @app.delete("/inventory/purchases/{purchase_id}", response_model=schemas.InventoryPurchase)
 def revert_inventory_purchase(purchase_id: str, db: Session = Depends(get_db)):
     return inventory.serialize_purchase(inventory.revert_purchase(db, purchase_id), False)
+
+
+@app.get("/grocery-entries", response_model=List[schemas.GroceryEntry])
+def list_grocery_entries(db: Session = Depends(get_db)):
+    return [grocery.serialize(entry) for entry in grocery.list_entries(db)]
+
+
+@app.post("/grocery-entries", response_model=schemas.GroceryEntry)
+def create_grocery_entry(data: schemas.GroceryEntryCreate, db: Session = Depends(get_db)):
+    entry, replayed = grocery.create_entry(db, data.entry_key, data.name, data.note, data.week_plan_id)
+    return grocery.serialize(entry, replayed)
+
+
+@app.post("/grocery-entries/import-local", response_model=List[schemas.GroceryEntry])
+def import_local_grocery_entries(data: schemas.LocalImport, db: Session = Depends(get_db)):
+    return [grocery.serialize(entry) for entry in grocery.import_local(db, data.entries)]
+
+
+@app.post("/grocery-entries/undo", response_model=List[schemas.GroceryEntry])
+def undo_grocery_changes(data: schemas.GroceryUndo, db: Session = Depends(get_db)):
+    return [grocery.serialize(entry) for entry in grocery.undo_changes(db, data)]
+
+
+@app.patch("/grocery-entries/{entry_id}", response_model=schemas.GroceryEntry)
+def update_grocery_entry(entry_id: int, data: schemas.GroceryEntryUpdate, db: Session = Depends(get_db)):
+    entry = grocery.update_entry(db, entry_id, data.model_fields_set, data.purchased, data.credit)
+    return grocery.serialize(entry)
+
+
+@app.delete("/grocery-entries/{entry_id}", status_code=204)
+def delete_grocery_entry(entry_id: int, db: Session = Depends(get_db)):
+    grocery.delete_entry(db, entry_id)
+
+
+@app.delete("/grocery-entries")
+def clear_purchased_grocery_entries(purchased: bool = False, db: Session = Depends(get_db)):
+    if not purchased:
+        raise HTTPException(400, "Only purchased entries can be cleared in bulk (purchased=true).")
+    return {"deleted": grocery.clear_purchased(db)}
+
+
+@app.get("/week-plans/{week_plan_id}/reconcile", response_model=schemas.ReconcileResult)
+def get_reconcile(week_plan_id: int, ref_date: Optional[date] = None, db: Session = Depends(get_db)):
+    week = db.get(models.WeekPlan, week_plan_id)
+    if not week:
+        raise HTTPException(404, "Week plan not found")
+    return reconcile.compute(db, week, ref_date)[0]
+
+
+@app.post("/week-plans/{week_plan_id}/reconcile", response_model=schemas.ReconcileApplyResult)
+def apply_reconcile(week_plan_id: int, data: schemas.ReconcileApply, db: Session = Depends(get_db)):
+    week = db.get(models.WeekPlan, week_plan_id)
+    if not week:
+        raise HTTPException(404, "Week plan not found")
+    return reconcile.apply(db, week, data.fingerprint, data.ref_date)
 
 
 @app.delete("/pairing-ingredients/{ingredient_id}", status_code=204)

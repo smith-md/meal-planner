@@ -208,7 +208,40 @@ Removes that meal from the week and returns the updated week plan.
 - `PUT /inventory/{item_id}` with `{ "quantity": "2" }` – manual correction to an absolute quantity in the row's unit (whole numbers, fractions like `1/2` or `1 1/2`, or decimals; `0` empties the row). 400 for an invalid quantity, 404 for an unknown id.
 - `POST /inventory/purchases` and `DELETE /inventory/purchases/{purchase_id}` credit and revert purchases (see the root `README.md`).
 
-The shopping list and pairings do not subtract inventory and ignore cooked/skipped state.
+`GET /week-plans/{week_plan_id}/shopping-list` and the pairings do not subtract inventory and ignore cooked/skipped state. For stock-aware figures use the reconcile endpoints below.
+
+#### Staples (minimums)
+
+- `GET /inventory/staples` – every stock row with a minimum (`id`, `item`, `unit`, `location`, `quantity`, `minimum`), including empty rows.
+- `PUT /inventory/{item_id}/minimum` with `{ "minimum": "2" }` – set the minimum for that ingredient (it applies across fridge and pantry rows; the other rows' minimums are cleared). `0` is allowed and warns only when the item runs out; `null` clears it. 400 for an invalid value, 404 for an unknown id.
+
+#### Grocery entries (server-side shopping list)
+
+Each entry has a stable `entry_key`, a `source` (`manual`, `added`, `plan`, `legacy`), an optional `week_plan_id`, `purchased`, a `purchase_id`, and an optional `credit` (`amount`, `location`).
+
+- `GET /grocery-entries` – list all entries.
+- `POST /grocery-entries` with `{ "entry_key", "name", "note"?, "week_plan_id"? }` – create an entry. The key must start with `manual:` or `added:` (400 otherwise) and be 8-120 characters. Repeating a key returns the existing entry with `replayed: true`. An `added:` entry returns 409 if an unpurchased entry already covers that ingredient.
+- `PATCH /grocery-entries/{entry_id}` with `{ "purchased"?, "credit"? }` – record purchase state. Setting `purchased` back to false clears the credit and issues a new `purchase_id`. A `credit` requires the entry to be purchased (400). 404 for an unknown id.
+- `DELETE /grocery-entries/{entry_id}` – remove an entry (204).
+- `DELETE /grocery-entries?purchased=true` – remove all purchased entries and return `{ "deleted": n }`; without `purchased=true` it returns 400.
+- `POST /grocery-entries/import-local` with `{ "entries": [...] }` (at most 500) – one-time migration of the browser `shoppingList` localStorage items as `legacy:` entries. Rows are cleaned one by one, so a bad row is skipped; re-sending is harmless; purchase state and credits are kept and nothing is credited again.
+- `POST /grocery-entries/undo` with `{ "added_keys", "updated", "removed" }` (each at most 500) – inverse of a delete or reconcile apply: removes the added entries, restores the old name/quantity/note of updated ones, and recreates removed ones. Purchased entries are never changed or deleted. 409 if the list changed during the undo.
+
+#### Reconcile
+
+- `GET /week-plans/{week_plan_id}/reconcile` (optional `ref_date`, default today) – preview only; nothing is written. 404 for an unknown week; 400 for a week before the current one.
+- `POST /week-plans/{week_plan_id}/reconcile` with `{ "fingerprint", "ref_date"? }` – apply the previewed changes in one transaction. 409 if the fingerprint no longer matches the current changes.
+
+Stock is allocated sequentially by week: weeks from the current one up to the selected week draw on the shared fridge+pantry stock in date order, so the same stock cannot cover two weeks. The result for a week does not depend on which week was requested first. Only planned meals (not skipped or cooked) are demand, and `PairingIngredient` leftovers are not subtracted.
+
+The preview contains:
+
+- `ingredients` – per ingredient `demand`, `on_hand`, `held_for_earlier_weeks`, `available`, `to_buy`, `add_name`, `minimum`, `inventory_id`, `meals` (which meals need it), `covered` and `entry` (an unpurchased entry already covers it), `covered_by_stock` (nothing left to buy), and `warnings`.
+- `warnings` – `below_minimum` (stock at or below the minimum) and `short` (demand above the stock available to that week).
+- `unmeasured` – lines with no parseable quantity, with the meals that use them. `no_yield` – meals with no yield. `staples` – tracked ingredients with a minimum that the week does not use. `position` is `this`, `next`, or `later`.
+- `changes` – `add`, `update` (`from_quantity`, `to_quantity`), and `remove` for the week's `plan:` entries, and `fingerprint`, a hash of `changes`. Purchased plan entries are never changed or removed. An unpurchased `manual:`, `added:`, or `legacy:` entry for the same ingredient counts as covering it, so no plan entry is added.
+
+A successful apply returns `entries` (the whole list), a fresh `reconcile`, a `summary` (`added`, `updated`, `removed`), and `undo`, a payload for `POST /grocery-entries/undo` (`null` if a change list exceeds 500 entries).
 
 #### Scaling, pairings, and shopping list
 

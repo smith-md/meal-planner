@@ -122,6 +122,19 @@ def list_inventory(db: Session):
 
 QUANTITY_PATTERN = re.compile(r"^(\d+\s+\d+/\d+|\d+/\d+|\d*\.\d+|\d+)$")
 QUANTITY_HELP = "Enter a quantity like 2, 1/2 or 1 1/2 (0 removes the item)."
+MINIMUM_HELP = "Enter a minimum like 2, 1/2 or 1 1/2 (0 warns only when you run out)."
+
+
+def parse_quantity(quantity, row, help_text=QUANTITY_HELP):
+    """Base-unit value of a typed quantity such as "2" or "1 1/2" in the row's display unit."""
+    text = " ".join(quantity.split())
+    if not QUANTITY_PATTERN.match(text):
+        raise HTTPException(400, help_text)
+    try:
+        value = float(sum(Fraction(part) for part in text.split()))
+    except (ValueError, ZeroDivisionError, OverflowError):
+        raise HTTPException(400, help_text)
+    return value * pairings.Ingredient(0, row.unit, row.item).factor
 
 
 def set_quantity(db: Session, item_id, quantity):
@@ -133,18 +146,58 @@ def set_quantity(db: Session, item_id, quantity):
     row = db.get(models.InventoryItem, item_id)
     if not row:
         raise HTTPException(404, "Inventory item not found")
-    text = " ".join(quantity.split())
-    if not QUANTITY_PATTERN.match(text):
-        raise HTTPException(400, QUANTITY_HELP)
-    try:
-        value = float(sum(Fraction(part) for part in text.split()))
-    except (ValueError, ZeroDivisionError, OverflowError):
-        raise HTTPException(400, QUANTITY_HELP)
-    base = value * pairings.Ingredient(0, row.unit, row.item).factor
+    base = parse_quantity(quantity, row)
     row.base_quantity = 0.0 if base < pairings.EPSILON else base
     db.commit()
     db.refresh(row)
     return row
+
+
+def serialize_staple(row):
+    ingredient = pairings.Ingredient(0, row.unit, row.item)
+    unit = "" if row.unit == "piece" else row.unit
+    return {
+        "id": row.id,
+        "item": row.item,
+        "unit": unit,
+        "location": row.location,
+        "quantity": _display(ingredient, max(row.base_quantity, 0.0)),
+        "minimum": _display(ingredient, row.minimum) if row.minimum is not None else None,
+    }
+
+
+def set_minimum(db: Session, item_id, minimum):
+    """Set or clear (None) the restock minimum of an ingredient, given on one of its stock rows.
+
+    The minimum belongs to the ingredient, not the location: it is stored on the given row and
+    cleared on that ingredient's other rows, so the value shown is the value that applies.
+    A minimum of 0 is allowed and makes the item a tracked staple.
+    """
+    row = db.get(models.InventoryItem, item_id)
+    if not row:
+        raise HTTPException(404, "Inventory item not found")
+    value = None
+    if minimum is not None:
+        value = parse_quantity(minimum, row, MINIMUM_HELP)
+        if value < pairings.EPSILON:
+            value = 0.0
+    siblings = db.query(models.InventoryItem).filter_by(item=row.item, unit_group=row.unit_group).all()
+    for sibling in siblings:
+        sibling.minimum = None
+    row.minimum = value
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def list_staples(db: Session):
+    """Every stock row with a minimum, including empty rows that list_inventory hides."""
+    return (
+        db.query(models.InventoryItem)
+        .filter(models.InventoryItem.minimum.is_not(None))
+        .order_by(models.InventoryItem.item, models.InventoryItem.location)
+        .all()
+    )
 
 
 def _display(ingredient, base):
