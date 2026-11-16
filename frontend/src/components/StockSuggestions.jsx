@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getStockSuggestions } from '../api';
 
 function afterText(meals) {
@@ -16,12 +16,15 @@ export default function StockSuggestions({ week, onAdd }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [fetching, setFetching] = useState(false);
+  const headingRef = useRef(null);
 
   useEffect(() => {
     let active = true;
+    setFetching(true);
     getStockSuggestions(week.id)
-      .then(data => { if (active) { setResult(data); setError(''); } })
-      .catch(err => { if (active) setError(err.message); });
+      .then(data => { if (active) { setResult(data); setError(''); setFetching(false); } })
+      .catch(err => { if (active) { setError(err.message); setFetching(false); } });
     return () => { active = false; };
   }, [week]);
 
@@ -35,6 +38,7 @@ export default function StockSuggestions({ week, onAdd }) {
     try {
       await onAdd(meal.meal_id);
       setNotice(`Added ${meal.name} to ${label}.`);
+      if (headingRef.current) headingRef.current.focus();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -43,12 +47,20 @@ export default function StockSuggestions({ week, onAdd }) {
   }
 
   return (
-    <section className="stock-suggestions" aria-labelledby="stock-heading">
-      <h3 id="stock-heading">Cook from what you have</h3>
+    <section
+      className={`stock-suggestions${fetching ? ' stock-refreshing' : ''}`}
+      aria-labelledby="stock-heading"
+      aria-busy={fetching}
+    >
+      <h3 id="stock-heading" tabIndex={-1} ref={headingRef}>Cook from what you have</h3>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
       {result && result.suggestions.length === 0 && !error && (
-        <p>Nothing in stock matches your saved meals.</p>
+        <p>
+          {result.remainders && result.remainders.length > 0
+            ? 'No other saved meals use your stock. Meals already in this week are not suggested.'
+            : 'Nothing in stock to cook from yet.'}
+        </p>
       )}
       {result && result.suggestions.map(meal => (
         <article key={meal.meal_id}>
@@ -57,7 +69,7 @@ export default function StockSuggestions({ week, onAdd }) {
               <h4>{meal.name}</h4>
               <p>Uses {meal.covered_count} of {meal.ingredient_count} ingredients from stock</p>
             </div>
-            <button disabled={busy} onClick={() => add(meal)}>Add to {label}</button>
+            <button disabled={busy || fetching} onClick={() => add(meal)}>Add to {label}</button>
           </div>
           <h5>From stock</h5>
           <ul>
