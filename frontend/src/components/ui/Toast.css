@@ -19,8 +19,9 @@
   width: 480px;
   padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
   border-radius: var(--radius-md);
-  background: var(--ink);
-  color: var(--surface);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
   box-shadow: var(--shadow-float);
   animation: ui-toast-in 180ms ease-out;
 }
@@ -35,18 +36,18 @@
 
 .ui-toast .ui-toast__action {
   flex: none;
-  color: var(--tint-sage);
+  color: var(--green);
 }
 .ui-toast .ui-toast__action:hover:not(:disabled) {
-  background: var(--ink-muted);
+  background: var(--surface-sunk);
 }
 
 .ui-toast .ui-toast__close {
   flex: none;
-  color: var(--surface);
+  color: var(--ink);
 }
 .ui-toast .ui-toast__close:hover:not(:disabled) {
-  background: var(--ink-muted);
+  background: var(--surface-sunk);
 }
 
 .ui-toast .ui-button:focus-visible {

@@ -44,13 +44,13 @@ export function Toast({ message, actionLabel, onAction, onDismiss, duration = TO
           className="ui-toast__action"
           onClick={() => {
             onAction?.()
-            onDismiss?.()
+            onDismiss?.({ restoreFocus: true })
           }}
         >
           {actionLabel}
         </Button>
       )}
-      <Button variant="icon" className="ui-toast__close" aria-label="Dismiss" onClick={() => onDismiss?.()}>
+      <Button variant="icon" className="ui-toast__close" aria-label="Dismiss" onClick={() => onDismiss?.({ restoreFocus: true })}>
         <CloseIcon />
       </Button>
     </div>
@@ -61,8 +61,31 @@ export function ToastProvider({ children }) {
   const [toast, setToast] = useState(null)
   const counter = useRef(0)
 
-  const dismiss = useCallback(() => setToast(null), [])
+  const regionRef = useRef(null)
+  const previousFocus = useRef(null)
+
+  // restoreFocus is set only when the user closed the toast (Undo/Dismiss).
+  // Timeout dismissal never moves focus.
+  const dismiss = useCallback((options) => {
+    if (options?.restoreFocus) {
+      const active = document.activeElement
+      const inToast = active && regionRef.current?.contains(active)
+      if (inToast || !active || active === document.body) {
+        const target = previousFocus.current
+        if (target && target.isConnected && typeof target.focus === 'function') target.focus()
+      }
+    }
+    previousFocus.current = null
+    setToast(null)
+  }, [])
   const show = useCallback((options) => {
+    const active = document.activeElement
+    // Keep the original element when a toast replaces another one.
+    if (!active || active === document.body || regionRef.current?.contains(active)) {
+      if (!previousFocus.current?.isConnected) previousFocus.current = null
+    } else {
+      previousFocus.current = active
+    }
     counter.current += 1
     setToast({ ...options, id: counter.current })
   }, [])
@@ -71,7 +94,7 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="ui-toast-region" role="status" aria-live="polite">
+      <div ref={regionRef} className="ui-toast-region" role="status" aria-live="polite">
         {toast && (
           <Toast
             key={toast.id}
