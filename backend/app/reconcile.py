@@ -61,6 +61,13 @@ def plan_key(week_plan_id, key):
     return f"plan:{week_plan_id}:{key[0]}:{key[1]}"
 
 
+RESTOCK_NOTE = "Restock to minimum"
+
+
+def restock_key(week_plan_id, key):
+    return f"plan:{week_plan_id}:{grocery.RESTOCK_MARK}{key[0]}:{key[1]}"
+
+
 def line_key(week_plan_id, line):
     normalized = " ".join(line.lower().split())
     if len(normalized) > MAX_KEY_PART:
@@ -184,11 +191,48 @@ def compute(db: Session, week, ref_date=None):
         .order_by(models.WeekPlan.start_date)
         .all()
     )
-    pool, _ = allocate(db, stock, earlier)
-
-    totals, first, meals, unmeasured, no_yield, meal_count = _week_demand(db, week, True)
     entries = grocery.list_entries(db)
     sizes = inventory.package_sizes_by_key(db)
+    non_plan_cover = {
+        (entry.item, entry.unit_group) for entry in entries
+        if not entry.purchased and entry.source != "plan" and entry.item and entry.unit_group
+    }
+
+    def round_to_packages(key, amount):
+        """Whole packages when the ingredient has a package size, else the plain amount."""
+        size_row = sizes.get(key) if key[1] in inventory.PACKAGE_GROUPS else None
+        if size_row and amount > 0:
+            return math.ceil(amount / size_row.base_quantity - EPSILON) * size_row.base_quantity
+        return amount
+
+    # Staples that get a restock line: at or below the minimum (the below_minimum warning) and not
+    # already covered by a manual/added/legacy entry. Names too long for a bounded key are skipped.
+    restock_keys = {
+        key for key in minimums
+        if stock.get(key, 0.0) <= minimums[key] + EPSILON and key not in non_plan_cover
+        and len(key[0]) <= MAX_KEY_PART
+    }
+
+    def restock_need(key, remaining):
+        """Quantity (base) that brings what remains after the week's demand back up to the minimum."""
+        need = minimums[key] - remaining
+        return round_to_packages(key, need) if need > EPSILON else 0.0
+
+    # Sequential allocation over the earlier weeks. Each earlier week also tops its restock staples up
+    # to the minimum (its own restock line), so a later week sees that quantity as available and never
+    # restocks the same shortfall twice. This is computed, not read from entries, so the answer does
+    # not depend on which weeks were reconciled or purchased first.
+    pool = dict(stock)
+    for earlier_week in earlier:
+        earlier_demand = _week_demand(db, earlier_week, False)[0]
+        for key, amount in earlier_demand.items():
+            taken = min(pool.get(key, 0.0), amount)
+            if taken > 0:
+                pool[key] = pool.get(key, 0.0) - taken
+        for key in restock_keys:
+            pool[key] = pool.get(key, 0.0) + restock_need(key, max(pool.get(key, 0.0), 0.0))
+
+    totals, first, meals, unmeasured, no_yield, meal_count = _week_demand(db, week, True)
 
     def covering(key):
         return next((entry for entry in entries
@@ -207,10 +251,6 @@ def compute(db: Session, week, ref_date=None):
 
     ingredients = []
     desired = {}
-    non_plan_cover = {
-        (entry.item, entry.unit_group) for entry in entries
-        if not entry.purchased and entry.source != "plan" and entry.item and entry.unit_group
-    }
     for key in sorted(totals, key=lambda k: (k[0].lower(), k[1])):
         demand = totals[key]
         if demand <= EPSILON:
@@ -274,6 +314,29 @@ def compute(db: Session, week, ref_date=None):
                     "quantity_base": buy_base, "note": None, "ingredient": ingredient,
                 }
 
+    # Restock lines: top the stock that remains after this week's demand up to the minimum. Plan lines
+    # above cover the demand shortfall, so nothing is counted twice. A zero shortfall (including a
+    # minimum of 0) creates no line. One line per week and key, kept apart from plan lines by its key.
+    for key in sorted(restock_keys, key=lambda k: (k[0].lower(), k[1])):
+        remaining = max(pool.get(key, 0.0) - totals.get(key, 0.0), 0.0)
+        buy_base = restock_need(key, remaining)
+        if buy_base <= EPSILON:
+            continue
+        ingredient = first.get(key) or stock_ingredient[key]
+        size_row = sizes.get(key) if key[1] in inventory.PACKAGE_GROUPS else None
+        add_name = ingredient.describe(buy_base)
+        if size_row:
+            packages = round(buy_base / size_row.base_quantity)
+            label = size_row.label or inventory.PACKAGE_LABEL_DEFAULT
+            plural = "" if packages == 1 else "es" if label.endswith(("s", "x", "ch", "sh")) else "s"
+            add_name = f"{add_name} ({packages} {label}{plural})"
+        entry_key = restock_key(week.id, key)
+        desired[entry_key] = {
+            "entry_key": entry_key, "name": bounded_name(add_name), "item": ingredient.item,
+            "unit_group": key[1], "unit": ingredient.unit, "quantity_base": buy_base,
+            "note": RESTOCK_NOTE, "ingredient": ingredient, "kind": "restock",
+        }
+
     unmeasured_out = []
     for slot in unmeasured.values():
         unmeasured_out.append(slot)
@@ -322,14 +385,16 @@ def compute(db: Session, week, ref_date=None):
     changes = {
         "add": [{"entry_key": w["entry_key"], "name": w["name"],
                  "quantity": amount_text(w["ingredient"], w["quantity_base"]) if w["ingredient"] else "",
-                 "note": w["note"]} for w in adds],
+                 "note": w["note"], "kind": w.get("kind", "plan")} for w in adds],
         "update": [{
             "entry_id": entry.id, "entry_key": entry.entry_key, "name": wanted["name"],
             "item": wanted["item"],
             "from_quantity": amount_text(wanted["ingredient"], entry.quantity_base or 0.0),
             "to_quantity": amount_text(wanted["ingredient"], wanted["quantity_base"]),
+            "kind": wanted.get("kind", "plan"),
         } for entry, wanted in updates],
-        "remove": [{"entry_id": entry.id, "entry_key": entry.entry_key, "name": entry.name}
+        "remove": [{"entry_id": entry.id, "entry_key": entry.entry_key, "name": entry.name,
+                    "kind": grocery.kind(entry)}
                    for entry in removes],
     }
     fingerprint = hashlib.sha256(

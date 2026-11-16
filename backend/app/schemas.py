@@ -262,6 +262,7 @@ class GroceryEntry(BaseModel):
     id: int
     entry_key: str
     source: str
+    kind: Optional[Literal["plan", "restock"]] = None  # "restock": a staple topped up to its minimum
     week_plan_id: Optional[int] = None
     week_start: Optional[date] = None
     name: str
@@ -404,6 +405,7 @@ class ReconcileAdd(BaseModel):
     name: str
     quantity: str
     note: Optional[str] = None
+    kind: Literal["plan", "restock"] = "plan"
 
 
 class ReconcileUpdate(BaseModel):
@@ -413,12 +415,14 @@ class ReconcileUpdate(BaseModel):
     item: Optional[str] = None
     from_quantity: str
     to_quantity: str
+    kind: Literal["plan", "restock"] = "plan"
 
 
 class ReconcileRemove(BaseModel):
     entry_id: int
     entry_key: str
     name: str
+    kind: Literal["plan", "restock"] = "plan"
 
 
 class ReconcileChanges(BaseModel):
