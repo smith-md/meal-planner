@@ -1,0 +1,68 @@
+.ui-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.ui-field__label {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.ui-field__hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.ui-field__control {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 44px;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--ink-muted);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.ui-textarea {
+  resize: vertical;
+}
+
+.ui-field__control:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.ui-field__control:disabled {
+  background: var(--surface-sunk);
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+.ui-field--error .ui-field__control {
+  border-color: var(--danger);
+}
+
+.ui-field__error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.ui-field__error svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}

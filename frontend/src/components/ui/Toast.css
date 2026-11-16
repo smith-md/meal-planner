@@ -1,0 +1,80 @@
+.ui-toast-region {
+  position: fixed;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.ui-toast {
+  pointer-events: auto;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  width: 480px;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--ink);
+  color: var(--surface);
+  box-shadow: var(--shadow-float);
+  animation: ui-toast-in 180ms ease-out;
+}
+
+.ui-toast__message {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+
+.ui-toast .ui-toast__action {
+  flex: none;
+  color: var(--tint-sage);
+}
+.ui-toast .ui-toast__action:hover:not(:disabled) {
+  background: var(--ink-muted);
+}
+
+.ui-toast .ui-toast__close {
+  flex: none;
+  color: var(--surface);
+}
+.ui-toast .ui-toast__close:hover:not(:disabled) {
+  background: var(--ink-muted);
+}
+
+.ui-toast .ui-button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+@keyframes ui-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-toast {
+    animation-name: ui-toast-fade;
+  }
+  @keyframes ui-toast-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
