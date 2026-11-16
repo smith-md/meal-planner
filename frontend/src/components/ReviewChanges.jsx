@@ -107,6 +107,7 @@ function ReviewChanges({ changes, weekLabel, busy, error, nothingChanged, locked
                     {changes.add.map(change => (
                       <li key={change.entry_key}>
                         <b aria-hidden="true">+</b> {change.name}
+                        {change.kind === 'restock' && <small className="review-restock"> Restock</small>}
                         {change.note && <small className="review-detail"> ({change.note})</small>}
                       </li>
                     ))}
@@ -119,7 +120,9 @@ function ReviewChanges({ changes, weekLabel, busy, error, nothingChanged, locked
                   <ul>
                     {changes.update.map(change => (
                       <li key={change.entry_key}>
-                        <b aria-hidden="true">~</b> {change.item || change.name}:{' '}
+                        <b aria-hidden="true">~</b>{' '}
+                        {change.kind === 'restock' && <small className="review-restock">Restock</small>}{' '}
+                        {change.item || change.name}:{' '}
                         {change.from_quantity === change.to_quantity && change.name ? (
                           `rename to "${change.name}"`
                         ) : (
@@ -137,6 +140,7 @@ function ReviewChanges({ changes, weekLabel, busy, error, nothingChanged, locked
                     {changes.remove.map(change => (
                       <li key={change.entry_key}>
                         <b aria-hidden="true">-</b> {change.name}
+                        {change.kind === 'restock' && <small className="review-restock"> Restock</small>}
                         <small className="review-detail"> (no longer needed)</small>
                       </li>
                     ))}

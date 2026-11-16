@@ -673,6 +673,7 @@ function ShoppingList({ onOpenPlanner }) {
 
   const weekTag = (entry) => {
     if (entry.source !== 'plan' || !entry.week_plan_id) return null;
+    if (entry.kind === 'restock') return 'Restock';
     if (weeks && entry.week_plan_id === weeks.this.id) return 'From this week';
     if (weeks && entry.week_plan_id === weeks.next.id) return 'From next week';
     return entry.week_start ? `From week of ${shortDate(entry.week_start)}` : 'From a planned week';

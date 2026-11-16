@@ -43,6 +43,20 @@ def quantity_text(item, unit, quantity_base):
     return pairings.Ingredient(0, unit, item).display_quantity(quantity_base)
 
 
+RESTOCK_MARK = "+restock:"  # plan:{week}:+restock:{item}:{unit_group}
+
+
+def is_restock(entry):
+    """A reconcile restock line (a staple topped up to its minimum), not a plan-driven demand line."""
+    return (entry.source == "plan" and entry.week_plan_id is not None
+            and entry.entry_key.startswith(f"plan:{entry.week_plan_id}:{RESTOCK_MARK}"))
+
+
+def kind(entry):
+    """"restock" for restock lines, "plan" for other reconcile lines, None for everything else."""
+    return "restock" if is_restock(entry) else "plan" if entry.source == "plan" else None
+
+
 def serialize(entry, replayed=False):
     credit = None
     if entry.credit_amount and entry.credit_location:
@@ -51,6 +65,7 @@ def serialize(entry, replayed=False):
         "id": entry.id,
         "entry_key": entry.entry_key,
         "source": entry.source,
+        "kind": kind(entry),
         "week_plan_id": entry.week_plan_id,
         "week_start": entry.week_plan.start_date if entry.week_plan else None,
         "name": entry.name,
@@ -84,7 +99,8 @@ def list_entries(db: Session):
 
 def covers(entry, week_plan_id):
     """An unpurchased entry covers an ingredient for a week unless it belongs to another week's plan."""
-    if entry.purchased:
+    if entry.purchased or is_restock(entry):
+        # A restock line only tops a staple up to its minimum; it never covers planned demand.
         return False
     return entry.source != "plan" or entry.week_plan_id == week_plan_id
 
