@@ -122,16 +122,11 @@ def _entry_ref(entry):
     return {"id": entry.id, "name": entry.name, "source": entry.source, "purchased": entry.purchased}
 
 
-def compute(db: Session, week, ref_date=None):
-    """Return (result, operations). Nothing is written."""
-    today = ref_date or date.today()
-    current_start = today - timedelta(days=today.weekday())
-    if week.start_date < current_start:
-        raise HTTPException(400, "Choose this week or a later week.")
-    offset = (week.start_date - current_start).days
-    position = "this" if offset == 0 else "next" if offset == 7 else "later"
+def stock_pool(db: Session):
+    """Fridge and pantry rows of one ingredient are one pool.
 
-    # Stock pool: fridge and pantry rows of one ingredient are one pool.
+    Returns (stock, stock_ingredient, inventory_rows, minimums), all keyed by (item, unit_group).
+    """
     stock = defaultdict(float)
     minimums = {}
     stock_ingredient = {}
@@ -143,6 +138,37 @@ def compute(db: Session, week, ref_date=None):
         inventory_rows[key].append(row)
         if row.minimum is not None:
             minimums[key] = max(minimums.get(key, 0.0), row.minimum)
+    return stock, stock_ingredient, inventory_rows, minimums
+
+
+def allocate(db: Session, stock, weeks):
+    """Sequentially take planned demand of each week (in the given order) from the stock pool.
+
+    Returns (pool, consumers). consumers[key] lists the planned meals that actually took stock.
+    """
+    pool = dict(stock)
+    consumers = defaultdict(list)
+    for week in weeks:
+        demand, _, meals, _, _, _ = _week_demand(db, week, True)
+        for key, amount in demand.items():
+            taken = min(pool.get(key, 0.0), amount)
+            if taken > 0:
+                pool[key] = pool.get(key, 0.0) - taken
+                if taken > EPSILON:
+                    consumers[key].extend(meals.get(key, []))
+    return pool, consumers
+
+
+def compute(db: Session, week, ref_date=None):
+    """Return (result, operations). Nothing is written."""
+    today = ref_date or date.today()
+    current_start = today - timedelta(days=today.weekday())
+    if week.start_date < current_start:
+        raise HTTPException(400, "Choose this week or a later week.")
+    offset = (week.start_date - current_start).days
+    position = "this" if offset == 0 else "next" if offset == 7 else "later"
+
+    stock, stock_ingredient, inventory_rows, minimums = stock_pool(db)
 
     def inventory_id(key):
         rows = inventory_rows.get(key)
@@ -158,13 +184,7 @@ def compute(db: Session, week, ref_date=None):
         .order_by(models.WeekPlan.start_date)
         .all()
     )
-    pool = dict(stock)
-    for earlier_week in earlier:
-        demand, _, _, _, _, _ = _week_demand(db, earlier_week, False)
-        for key, amount in demand.items():
-            taken = min(pool.get(key, 0.0), amount)
-            if taken > 0:
-                pool[key] = pool.get(key, 0.0) - taken
+    pool, _ = allocate(db, stock, earlier)
 
     totals, first, meals, unmeasured, no_yield, meal_count = _week_demand(db, week, True)
     entries = grocery.list_entries(db)

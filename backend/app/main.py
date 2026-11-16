@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-from . import models, schemas, crud, pairings, inventory, grocery, reconcile
+from . import models, schemas, crud, pairings, inventory, grocery, reconcile, stock_suggestions
 from .database import engine, get_db, ensure_columns
 
 models.Base.metadata.create_all(bind=engine)
@@ -257,6 +257,14 @@ def get_reconcile(week_plan_id: int, ref_date: Optional[date] = None, db: Sessio
     if not week:
         raise HTTPException(404, "Week plan not found")
     return reconcile.compute(db, week, ref_date)[0]
+
+
+@app.get("/week-plans/{week_plan_id}/stock-suggestions", response_model=schemas.StockSuggestionsResult)
+def get_stock_suggestions(week_plan_id: int, ref_date: Optional[date] = None, db: Session = Depends(get_db)):
+    week = db.get(models.WeekPlan, week_plan_id)
+    if not week:
+        raise HTTPException(404, "Week plan not found")
+    return stock_suggestions.compute(db, week, ref_date)
 
 
 @app.post("/week-plans/{week_plan_id}/reconcile", response_model=schemas.ReconcileApplyResult)

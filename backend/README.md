@@ -256,6 +256,16 @@ The preview contains:
 
 A successful apply returns `entries` (the whole list), a fresh `reconcile`, a `summary` (`added`, `updated`, `removed`), and `undo`, a payload for `POST /grocery-entries/undo` (`null` if a change list exceeds 500 entries).
 
+#### Meal suggestions from stock
+
+- `GET /week-plans/{week_plan_id}/stock-suggestions` (optional `ref_date`, default today) – read-only; nothing is written. 404 for an unknown week; 400 for a week before the current one.
+- The pool is confirmed fridge+pantry inventory minus the scaled demand of planned meals (not skipped or cooked) from the current week through the target week, earlier weeks first (the same allocation as reconcile). Unbought purchase leftovers and manual `PairingIngredient` leftovers are not counted. Matching is exact by item and unit group.
+- Candidates are all saved meals except those already in the target week. Each is evaluated against the same pool on its own, so suggestions do not compete with each other. Meals that use none of the pool are omitted.
+- Ranking order: highest mean per-ingredient coverage from stock, then fewest groceries, then more projected uses, then name. At most 10 suggestions are returned.
+- The response has `week_plan_id`, `start_date`, `end_date`, `ref_date`, `position` (`this`, `next`, or `later`), `remainders`, and `suggestions`.
+- Each suggestion has `meal_id`, `name`, `servings`, `coverage_percent`, `covered_count`, `ingredient_count`, `uses`, `groceries`, and `unmeasured`. `uses` entries show the ingredient and quantity used: `key`, `item`, `unit`, `used`, `needed`, `available`, and `source`. `groceries` entries are the additional groceries needed: `key`, `item`, `amount`, `name`, and `partial` (true when stock covers only part of the need). `unmeasured` lists ingredient lines with no parseable quantity; they are shown but not counted.
+- `source` is `confirmed` (stock no planned meal draws on; `locations` lists `fridge` and/or `pantry`) or `projected` (left over after planned meals; `after_meals` lists those meals). For example, half a cabbage left after a planned slaw is a projected remainder that can cover another meal this week or next. `remainders` lists the whole pool (`key`, `item`, `unit`, `amount`, `source`, `locations`, `after_meals`), so a client can tell projected remainders from confirmed stock; the web UI shows them with different badges.
+
 #### Scaling, pairings, and shopping list
 
 Ingredient quantities are scaled by `servings / yield_servings` before the
