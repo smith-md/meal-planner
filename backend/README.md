@@ -109,9 +109,27 @@ Example `POST /meals/items` body:
 - `GET /meals` – list all meals (optional `search` query parameter)
 - `POST /meals` – create a meal; `ingredients` is free text, one line per ingredient
 - `PATCH /meals/{meal_id}` – set or clear the recipe yield (404 if the meal does not exist)
+- `PATCH /meals/{meal_id}/details` – partially update `prep_minutes`, `cook_minutes` and `make_ahead` (404 if the meal does not exist)
 
 `yield_servings` is how many servings the recipe's written quantities make.
 It is an optional integer from 1 to 99 (`null` means no yield is set).
+
+`prep_minutes` and `cook_minutes` are optional whole numbers of minutes from 0 to 1440
+(`null` means not set; 0 is allowed). `make_ahead` is a boolean that defaults to `false`.
+They are accepted by `POST /meals` and returned by `GET /meals`. Negative, non-integer
+or above-1440 minutes, and a non-boolean or `null` `make_ahead`, return 422.
+
+`PATCH /meals/{meal_id}/details` changes only the fields present in the body: an omitted
+field is left as it is (including `yield_servings`), and `null` clears a time. The
+yield-only `PATCH /meals/{meal_id}` is unchanged. Example (clears cook time, sets make-ahead):
+
+```json
+{ "cook_minutes": null, "make_ahead": true }
+```
+
+The Meals Library filters (maximum prep, maximum cook, make-ahead only) run in the
+browser over the `GET /meals` result and need no extra endpoint. They combine with the
+text search, and meals with an unset time are hidden while that time filter is active.
 
 Example `POST /meals` body:
 
@@ -290,8 +308,9 @@ are combined.
 The database is SQLite at `./meal_planner.db` unless the `DATABASE_URL`
 environment variable is set (for example `sqlite:///:memory:` for a throwaway
 database). On startup the app runs `create_all` and then adds the
-`meals.yield_servings` and `week_meals.servings` columns to older databases
-that lack them. This is idempotent, and existing rows keep `NULL` values.
+`meals.yield_servings`, `meals.prep_minutes`, `meals.cook_minutes`, `meals.make_ahead` and
+`week_meals.servings` columns to older databases that lack them. This is idempotent;
+existing rows keep `NULL` values, except `meals.make_ahead`, which is `false` (column default 0).
 
 ---
 

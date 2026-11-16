@@ -88,6 +88,16 @@ def update_meal_yield(db: Session, meal_id: int, yield_servings: Optional[int]):
     return meal
 
 
+def update_meal_details(db: Session, meal_id: int, data: schemas.MealDetailsUpdate):
+    meal = db.query(models.Meal).filter(models.Meal.id == meal_id).first()
+    if meal:
+        for field in data.model_fields_set:
+            setattr(meal, field, getattr(data, field))
+        db.commit()
+        db.refresh(meal)
+    return meal
+
+
 def add_meal_to_week(db: Session, week_plan_id: int, meal_id: int, servings: Optional[int] = None):
     week_plan = db.query(models.WeekPlan).filter(models.WeekPlan.id == week_plan_id).first()
     meal = db.query(models.Meal).filter(models.Meal.id == meal_id).first()

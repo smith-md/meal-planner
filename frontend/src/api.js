@@ -107,6 +107,16 @@ export async function updateMealYield(mealId, yieldServings) {
   return response.json();
 }
 
+export async function updateMealDetails(mealId, changes) {
+  const response = await fetch(`${API_BASE_URL}/meals/${mealId}/details`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(changes)
+  });
+  if (!response.ok) throw new Error(await failureMessage(response, 'Times must be whole minutes from 0 to 1440.'));
+  return response.json();
+}
+
 export async function removeMealFromWeek(weekPlanId, mealId) {
   const response = await fetch(`${API_BASE_URL}/week-plans/${weekPlanId}/meals/${mealId}`, {
     method: 'DELETE'
