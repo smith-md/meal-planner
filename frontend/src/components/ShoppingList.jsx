@@ -17,6 +17,10 @@ import {
   setPackageSize
 } from '../api';
 import ReviewChanges from './ReviewChanges';
+import Button from './ui/Button.jsx';
+import { EmptyState, ErrorState, Skeleton } from './ui/States.jsx';
+import StatusPill from './ui/StatusPill.jsx';
+import { AlertIcon, CheckIcon, CloseIcon, PlusIcon } from './ui/icons.jsx';
 import './ShoppingList.css';
 
 const HAS_QUANTITY = /^\s*[\d½¼¾⅓⅔⅛]/;
@@ -83,13 +87,20 @@ const WARNING_LABELS = {
 function Warnings({ warnings }) {
   if (!warnings.length) return null;
   return (
-    <div className="need-badges">
+    <div className="shopping-list__badges">
       {warnings.map(warning => (
-        <small key={warning.type} className="need-badge need-badge-warning">
-          <b aria-hidden="true">⚠</b> {WARNING_LABELS[warning.type]}
-        </small>
+        <StatusPill key={warning.type} status="warn">{WARNING_LABELS[warning.type]}</StatusPill>
       ))}
     </div>
+  );
+}
+
+function InlineError({ id, children }) {
+  return (
+    <p className="shopping-list__error" id={id} role="alert">
+      <AlertIcon size={18} />
+      <span>{children}</span>
+    </p>
   );
 }
 
@@ -130,11 +141,12 @@ function MinimumEditor({ row, onSaved, onClose }) {
   };
 
   return (
-    <form className="minimum-editor" onSubmit={submit} noValidate>
-      <label>
+    <form className="shopping-list__panel" onSubmit={submit} noValidate>
+      <label className="shopping-list__label">
         Minimum to keep on hand
-        <span className="minimum-field">
+        <span className="shopping-list__field-row">
           <input
+            className="shopping-list__input"
             type="text"
             inputMode="decimal"
             ref={inputRef}
@@ -143,17 +155,17 @@ function MinimumEditor({ row, onSaved, onClose }) {
             placeholder={`e.g. 2${row.unit ? ` ${row.unit}s` : ''}`}
             aria-describedby={error ? `min-error-${idSlug(row.key)}` : undefined}
           />
-          <small className="minimum-unit">{row.unit || 'count'}</small>
+          <small className="shopping-list__unit">{row.unit || 'count'}</small>
         </span>
       </label>
-      {row.minimum && <p className="minimum-current">Current minimum: {row.minimum}</p>}
-      {error && <p className="checkout-error" id={`min-error-${idSlug(row.key)}`} role="alert">{error}</p>}
-      <div className="minimum-actions">
-        <button type="submit" className="minimum-save" disabled={busy || !text.trim()}>
+      {row.minimum && <p className="shopping-list__hint">Current minimum: {row.minimum}</p>}
+      {error && <InlineError id={`min-error-${idSlug(row.key)}`}>{error}</InlineError>}
+      <div className="shopping-list__actions">
+        <Button type="submit" disabled={busy || !text.trim()}>
           {busy ? 'Saving...' : 'Save'}
-        </button>
-        <button type="button" onClick={onClose} disabled={busy}>Cancel</button>
-        {row.minimum && <button type="button" onClick={() => save(null)} disabled={busy}>Remove minimum</button>}
+        </Button>
+        <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+        {row.minimum && <Button variant="secondary" onClick={() => save(null)} disabled={busy}>Remove minimum</Button>}
       </div>
     </form>
   );
@@ -199,7 +211,7 @@ function PackageSizeEditor({ row, onSaved, onClose }) {
   const slug = idSlug(row.key);
   return (
     <form
-      className="minimum-editor"
+      className="shopping-list__panel"
       onSubmit={submit}
       onKeyDown={(event) => {
         if (event.key === 'Escape' && !busy) {
@@ -209,10 +221,11 @@ function PackageSizeEditor({ row, onSaved, onClose }) {
       }}
       noValidate
     >
-      <label>
+      <label className="shopping-list__label">
         Typical package size
-        <span className="minimum-field">
+        <span className="shopping-list__field-row">
           <input
+            className="shopping-list__input"
             type="text"
             ref={inputRef}
             value={size}
@@ -223,10 +236,11 @@ function PackageSizeEditor({ row, onSaved, onClose }) {
           />
         </span>
       </label>
-      <label>
+      <label className="shopping-list__label">
         Container (optional)
-        <span className="minimum-field">
+        <span className="shopping-list__field-row">
           <input
+            className="shopping-list__input"
             type="text"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
@@ -235,14 +249,14 @@ function PackageSizeEditor({ row, onSaved, onClose }) {
           />
         </span>
       </label>
-      {row.package && <p className="minimum-current">Current size: {row.package.size}</p>}
-      {error && <p className="checkout-error" id={`pkg-error-${slug}`} role="alert">{error}</p>}
-      <div className="minimum-actions">
-        <button type="submit" className="minimum-save" disabled={busy || !size.trim()}>
+      {row.package && <p className="shopping-list__hint">Current size: {row.package.size}</p>}
+      {error && <InlineError id={`pkg-error-${slug}`}>{error}</InlineError>}
+      <div className="shopping-list__actions">
+        <Button type="submit" disabled={busy || !size.trim()}>
           {busy ? 'Saving...' : 'Save'}
-        </button>
-        <button type="button" onClick={onClose} disabled={busy}>Cancel</button>
-        {row.package && <button type="button" onClick={() => save(null)} disabled={busy}>Remove size</button>}
+        </Button>
+        <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+        {row.package && <Button variant="secondary" onClick={() => save(null)} disabled={busy}>Remove size</Button>}
       </div>
     </form>
   );
@@ -691,23 +705,25 @@ function ShoppingList({ onOpenPlanner }) {
   const coveredByStock = data ? data.ingredients.filter(row => row.covered_by_stock) : [];
 
   const renderError = (entry) =>
-    error && error.id === entry.id ? <p className="checkout-error" role="alert">{error.message}</p> : null;
+    error && error.id === entry.id ? <InlineError>{error.message}</InlineError> : null;
 
   const renderCheckout = (entry) => (
-    <div className="checkout-panel">
-      <p className="checkout-hint">Confirm what you bought so it is added to your fridge or pantry.</p>
-      <label>
+    <div className="shopping-list__panel">
+      <p className="shopping-list__hint">Confirm what you bought so it is added to your fridge or pantry.</p>
+      <label className="shopping-list__label">
         Amount bought
         <input
+          className="shopping-list__input"
           type="text"
           value={checkout.amount}
           onChange={(e) => setCheckout({ ...checkout, amount: e.target.value })}
           placeholder="e.g. 2 cups rice"
         />
       </label>
-      <label>
+      <label className="shopping-list__label">
         Store in
         <select
+          className="shopping-list__input"
           value={checkout.location}
           onChange={(e) => setCheckout({ ...checkout, location: e.target.value })}
         >
@@ -717,14 +733,14 @@ function ShoppingList({ onOpenPlanner }) {
         </select>
       </label>
       {renderError(entry)}
-      <div className="checkout-actions">
-        <button className="checkout-save" onClick={() => saveCheckout(entry)} disabled={busyId !== null}>
+      <div className="shopping-list__actions">
+        <Button onClick={() => saveCheckout(entry)} disabled={busyId !== null}>
           Save
-        </button>
-        <button onClick={() => markWithoutInventory(entry)} disabled={busyId !== null}>
+        </Button>
+        <Button variant="secondary" onClick={() => markWithoutInventory(entry)} disabled={busyId !== null}>
           Mark purchased without adding to inventory
-        </button>
-        <button onClick={cancelCheckout} disabled={busyId !== null}>Cancel</button>
+        </Button>
+        <Button variant="secondary" onClick={cancelCheckout} disabled={busyId !== null}>Cancel</Button>
       </div>
     </div>
   );
@@ -733,16 +749,16 @@ function ShoppingList({ onOpenPlanner }) {
     if (row.inventory_id) {
       return (
         <>
-          <button className="need-secondary" onClick={() => openMinimumEditor(row)} aria-expanded={editorKey === row.key}>
+          <Button variant="secondary" className="shopping-list__secondary" onClick={() => openMinimumEditor(row)} aria-expanded={editorKey === row.key}>
             {row.minimum ? 'Change minimum' : 'Set minimum'}
-          </button>
+          </Button>
           {editorKey === row.key && (
             <MinimumEditor row={row} onSaved={minimumSaved} onClose={() => setEditorKey(null)} />
           )}
         </>
       );
     }
-    return showHint ? <p className="need-hint">Add stock first to set a minimum.</p> : null;
+    return showHint ? <p className="shopping-list__hint">Add stock first to set a minimum.</p> : null;
   };
 
   const renderPackageControls = (row) => {
@@ -750,14 +766,15 @@ function ShoppingList({ onOpenPlanner }) {
     const pkgKey = `pkg:${row.key}`;
     return (
       <>
-        <button
-          className="need-secondary"
+        <Button
+          variant="secondary"
+          className="shopping-list__secondary"
           ref={(node) => { if (node) packageToggleRefs.current[pkgKey] = node; else delete packageToggleRefs.current[pkgKey]; }}
           onClick={() => openMinimumEditor({ key: pkgKey })}
           aria-expanded={editorKey === pkgKey}
         >
           {row.package ? 'Change package size' : 'Set package size'}
-        </button>
+        </Button>
         {editorKey === pkgKey && (
           <PackageSizeEditor
             row={row}
@@ -773,18 +790,18 @@ function ShoppingList({ onOpenPlanner }) {
     const open = expanded === row.key;
     const stillNeeded = !row.covered_by_stock;
     return (
-      <article key={row.key} className="need-card">
-        <div className="need-head">
-          <h4>{row.item}</h4>
+      <article key={row.key} className="shopping-list__card">
+        <div className="shopping-list__card-head">
+          <h4 className="shopping-list__card-title">{row.item}</h4>
           <Warnings warnings={row.warnings} />
         </div>
-        <dl className="need-figures">
+        <dl className="shopping-list__figures">
           <div><dt>Need</dt><dd>{row.demand}</dd></div>
           <div><dt>On hand</dt><dd>{row.available}</dd></div>
-          <div className={stillNeeded ? 'need-still' : ''}><dt>Still to buy</dt><dd>{row.to_buy}</dd></div>
+          <div className={stillNeeded ? 'shopping-list__figure--still' : ''}><dt>Still to buy</dt><dd>{row.to_buy}</dd></div>
         </dl>
         {row.package && row.package.packages > 0 && (
-          <dl className="need-figures">
+          <dl className="shopping-list__figures">
             <div>
               <dt>Buy</dt>
               <dd>{row.package.packages} {pluralLabel(row.package.label, row.package.packages)} ({row.package.buy})</dd>
@@ -792,41 +809,38 @@ function ShoppingList({ onOpenPlanner }) {
             <div><dt>Left after cooking</dt><dd>{row.package.remainder}</dd></div>
           </dl>
         )}
-        <p className="need-meals">For: {mealsSummary(row.meals)}</p>
+        <p className="shopping-list__hint">For: {mealsSummary(row.meals)}</p>
         <div
-          className="need-status"
+          className="shopping-list__badges"
           tabIndex={-1}
           ref={(node) => { if (node) statusRefs.current[row.key] = node; else delete statusRefs.current[row.key]; }}
         >
-          {row.covered_by_stock && (
-            <small className="need-badge need-badge-ok"><b aria-hidden="true">✓</b> Covered by stock</small>
-          )}
-          {row.covered && (
-            <small className="need-badge need-badge-ok"><b aria-hidden="true">✓</b> On list</small>
-          )}
+          {row.covered_by_stock && <StatusPill status="ok">Covered by stock</StatusPill>}
+          {row.covered && <StatusPill status="ok">On list</StatusPill>}
         </div>
         {stillNeeded && !row.covered && (
-          <button
-            className="need-add"
+          <Button
+            className="shopping-list__add-need"
             onClick={() => addIngredient(row)}
             disabled={locked || addingKey !== null || busyId !== null}
           >
             {addingKey === row.key ? 'Adding...' : row.package && row.package.packages > 0
               ? `Add ${row.package.packages} ${pluralLabel(row.package.label, row.package.packages)} to shopping list`
               : `Add ${row.to_buy} to shopping list`}
-          </button>
+          </Button>
         )}
-        {rowError && rowError.key === row.key && <p className="checkout-error" role="alert">{rowError.message}</p>}
-        <button
-          className="need-secondary"
+        {rowError && rowError.key === row.key && <InlineError>{rowError.message}</InlineError>}
+        <Button
+          variant="secondary"
+          className="shopping-list__secondary"
           onClick={() => setExpanded(open ? null : row.key)}
           aria-expanded={open}
           aria-controls={`need-details-${idSlug(row.key)}`}
         >
           {open ? 'Hide details' : `Details (${row.meals.length} meal${row.meals.length === 1 ? '' : 's'})`}
-        </button>
+        </Button>
         {open && (
-          <div className="need-details" id={`need-details-${idSlug(row.key)}`}>
+          <div className="shopping-list__details" id={`need-details-${idSlug(row.key)}`}>
             <ul>
               {row.meals.map(meal => (
                 <li key={meal.meal_id}>
@@ -850,18 +864,18 @@ function ShoppingList({ onOpenPlanner }) {
   };
 
   const renderStaple = (row) => (
-    <article key={row.key} className="need-card">
-      <div className="need-head">
-        <h4>{row.item}</h4>
+    <article key={row.key} className="shopping-list__card">
+      <div className="shopping-list__card-head">
+        <h4 className="shopping-list__card-title">{row.item}</h4>
         <Warnings warnings={row.warnings} />
       </div>
-      <p className="need-meals">On hand {row.on_hand}, minimum {row.minimum}</p>
+      <p className="shopping-list__hint">On hand {row.on_hand}, minimum {row.minimum}</p>
       {row.covered && (
-        <div className="need-status">
-          <small className="need-badge need-badge-ok"><b aria-hidden="true">✓</b> On list</small>
+        <div className="shopping-list__badges">
+          <StatusPill status="ok">On list</StatusPill>
         </div>
       )}
-      {row.warnings.map(warning => <p key={warning.type} className="need-hint">{warning.message}</p>)}
+      {row.warnings.map(warning => <p key={warning.type} className="shopping-list__hint">{warning.message}</p>)}
       {renderMinimumControls(row, false)}
     </article>
   );
@@ -869,66 +883,54 @@ function ShoppingList({ onOpenPlanner }) {
   const renderNeeds = () => {
     if (!weeks) {
       return weeksError
-        ? (
-          <div role="alert" className="inline-error">
-            <p>{weeksError}</p>
-            <button className="need-secondary" onClick={loadWeeks}>Retry</button>
-          </div>
-        )
-        : <p className="no-items">Loading...</p>;
+        ? <ErrorState message={weeksError} retryLabel="Retry" onRetry={loadWeeks} />
+        : <Skeleton rows={2} label="Loading weeks" />;
     }
-    if (recon.status === 'loading') return <p className="no-items">Loading what {weekName} needs...</p>;
+    if (recon.status === 'loading') return <Skeleton rows={3} label={`Loading what ${weekName} needs`} />;
     if (!data) {
-      return (
-        <div role="alert" className="inline-error">
-          <p>{recon.error}</p>
-          <button className="need-secondary" onClick={() => loadRecon(selectedWeek.id)}>Retry</button>
-        </div>
-      );
+      return <ErrorState message={recon.error} retryLabel="Retry" onRetry={() => loadRecon(selectedWeek.id)} />;
     }
     return (
       <>
         {recon.error && (
-          <div role="alert" className="inline-error">
-            <p>{recon.error}</p>
-            <button className="need-secondary" onClick={() => loadRecon(selectedWeek.id)}>Retry</button>
-          </div>
+          <ErrorState message={recon.error} retryLabel="Retry" onRetry={() => loadRecon(selectedWeek.id)} />
         )}
         {data.no_yield.length > 0 && (
-          <p className="import-hint need-yield-hint">
+          <p className="shopping-list__hint shopping-list__yield-hint">
             No yield set for {data.no_yield.join(', ')}. {data.no_yield.length === 1 ? 'Its quantity is' : 'Their quantities are'} used as written, not scaled by planned servings.
           </p>
         )}
         {data.meal_count === 0 && data.ingredients.length === 0 && data.unmeasured.length === 0 ? (
-          <div className="no-items">
-            <p>No meals planned for {weekName}. Plan meals in the Weekly Planner.</p>
-            {onOpenPlanner && <button className="need-secondary" onClick={onOpenPlanner}>Open Weekly Planner</button>}
-          </div>
+          <EmptyState
+            message={`No meals planned for ${weekName}. Plan meals in the Weekly Planner.`}
+            actionLabel={onOpenPlanner ? 'Open Weekly Planner' : undefined}
+            onAction={onOpenPlanner}
+          />
         ) : (
           <>
             {data.ingredients.length > 0 && stillToBuy.length === 0 && (
-              <p className="need-all-good" role="status">You have everything for {weekName}.</p>
+              <p className="shopping-list__all-good" role="status">You have everything for {weekName}.</p>
             )}
             {stillToBuy.length > 0 && (
-              <div className="need-group">
-                <h4 className="need-group-title">Still to buy ({stillToBuy.length})</h4>
+              <div className="shopping-list__group">
+                <h4 className="shopping-list__group-title">Still to buy ({stillToBuy.length})</h4>
                 {stillToBuy.map(renderNeedCard)}
               </div>
             )}
             {coveredByStock.length > 0 && (
-              <details className="need-group">
-                <summary>Covered by stock ({coveredByStock.length})</summary>
+              <details className="shopping-list__group">
+                <summary className="shopping-list__group-title">Covered by stock ({coveredByStock.length})</summary>
                 {coveredByStock.map(renderNeedCard)}
               </details>
             )}
             {data.unmeasured.length > 0 && (
-              <div className="need-group">
-                <h4 className="need-group-title">Unmeasured items ({data.unmeasured.length})</h4>
+              <div className="shopping-list__group">
+                <h4 className="shopping-list__group-title">Unmeasured items ({data.unmeasured.length})</h4>
                 {data.unmeasured.map(line => (
-                  <article key={line.line} className="need-card">
-                    <h4>{line.line}</h4>
-                    <p className="need-meals">For: {mealsSummary(line.meals)}</p>
-                    {line.note && <p className="need-hint">{line.note}</p>}
+                  <article key={line.line} className="shopping-list__card">
+                    <h4 className="shopping-list__card-title">{line.line}</h4>
+                    <p className="shopping-list__hint">For: {mealsSummary(line.meals)}</p>
+                    {line.note && <p className="shopping-list__hint">{line.note}</p>}
                   </article>
                 ))}
               </div>
@@ -942,30 +944,40 @@ function ShoppingList({ onOpenPlanner }) {
   const renderEntry = (entry, isPurchased) => {
     const tag = weekTag(entry);
     return (
-      <div key={entry.id} className="item-wrap">
-        <div className={isPurchased ? 'item purchased' : 'item'}>
-          <input
-            type="checkbox"
-            checked={entry.purchased}
-            disabled={busyId !== null}
-            aria-label={`${entry.name}, ${isPurchased ? 'purchased' : 'to buy'}`}
-            onChange={() => togglePurchased(entry)}
-          />
-          <span className={entry.source === 'plan' ? 'from-week' : ''}>
+      <div key={entry.id} className="shopping-list__item-wrap">
+        <div className={isPurchased ? 'shopping-list__item shopping-list__item--bought' : 'shopping-list__item'}>
+          <label className="shopping-list__check">
+            <input
+              type="checkbox"
+              checked={entry.purchased}
+              disabled={busyId !== null}
+              aria-label={`${entry.name}, ${isPurchased ? 'bought' : 'to buy'}`}
+              onChange={() => togglePurchased(entry)}
+            />
+          </label>
+          <span className={entry.source === 'plan' ? 'shopping-list__name shopping-list__name--plan' : 'shopping-list__name'}>
             {entry.name}
-            {tag && <small className="entry-tag">{tag}</small>}
+            {tag && <small className="shopping-list__tag">{tag}</small>}
             {isPurchased && entry.credit && (
-              <span className="credit-note">
+              <span className="shopping-list__credit">
                 added {entry.credit.amount} to {entry.credit.location}
               </span>
             )}
           </span>
           {isPurchased && entry.credit && (
-            <button className="edit-credit" onClick={() => editCredit(entry)} disabled={busyId !== null}>
+            <Button variant="secondary" onClick={() => editCredit(entry)} disabled={busyId !== null}>
               Edit
-            </button>
+            </Button>
           )}
-          <button aria-label={`Remove ${entry.name}`} onClick={() => deleteEntry(entry)} disabled={busyId !== null}>×</button>
+          <Button
+            variant="icon"
+            className="shopping-list__remove"
+            aria-label={`Remove ${entry.name}`}
+            onClick={() => deleteEntry(entry)}
+            disabled={busyId !== null}
+          >
+            <CloseIcon />
+          </Button>
         </div>
         {!isPurchased && checkout && checkout.id === entry.id ? renderCheckout(entry) : renderError(entry)}
       </div>
@@ -974,17 +986,17 @@ function ShoppingList({ onOpenPlanner }) {
 
   const renderChecklist = () => {
     if (migration.status === 'running' && migration.local.length === 0) {
-      return <p className="no-items">Loading your list...</p>;
+      return <Skeleton rows={3} label="Loading your list" />;
     }
     if (migration.status !== 'done') {
       return (
-        <div className="list-section">
-          <h3>Saved on this device</h3>
-          <div className="items">
+        <div className="shopping-list__list-section">
+          <h4 className="shopping-list__group-title">Saved on this device</h4>
+          <div className="shopping-list__items">
             {migration.local.map(item => (
-              <div key={item.id ?? item.name} className="item-wrap">
-                <div className={item.purchased ? 'item purchased' : 'item'}>
-                  <span>{item.name}</span>
+              <div key={item.id ?? item.name} className="shopping-list__item-wrap">
+                <div className={item.purchased ? 'shopping-list__item shopping-list__item--bought' : 'shopping-list__item'}>
+                  <span className="shopping-list__name">{item.name}</span>
                 </div>
               </div>
             ))}
@@ -992,38 +1004,31 @@ function ShoppingList({ onOpenPlanner }) {
         </div>
       );
     }
-    if (listState === 'loading') return <p className="no-items">Loading your list...</p>;
+    if (listState === 'loading') return <Skeleton rows={3} label="Loading your list" />;
     if (listState === 'error') {
-      return (
-        <div role="alert" className="inline-error">
-          <p>{listError}</p>
-          <button className="need-secondary" onClick={refreshEntries}>Retry</button>
-        </div>
-      );
+      return <ErrorState message={listError} retryLabel="Retry" onRetry={refreshEntries} />;
     }
     return (
       <>
-        <div className="list-section">
-          <div className="section-header">
-            <h3>To Buy ({toBuy.length})</h3>
-            {purchased.length > 0 && (
-              <button className="clear-btn" onClick={clearPurchased} disabled={busyId !== null}>
-                Clear purchased ({purchased.length})
-              </button>
-            )}
-          </div>
-          <div className="items">
+        <div className="shopping-list__list-section">
+          <h4 className="shopping-list__group-title">To buy ({toBuy.length})</h4>
+          <div className="shopping-list__items">
             {toBuy.length === 0 ? (
-              <p className="no-items">Nothing to buy yet. Use Review changes to add what this week needs, or add an item.</p>
+              <EmptyState message="Nothing to buy yet. Use Review changes to add what this week needs, or add an item." />
             ) : (
               toBuy.map(entry => renderEntry(entry, false))
             )}
           </div>
         </div>
         {purchased.length > 0 && (
-          <div className="list-section">
-            <h3>Purchased ({purchased.length})</h3>
-            <div className="items">{purchased.map(entry => renderEntry(entry, true))}</div>
+          <div className="shopping-list__list-section shopping-list__bought">
+            <div className="shopping-list__list-header">
+              <h4 className="shopping-list__group-title">Bought ({purchased.length})</h4>
+              <Button variant="danger-quiet" onClick={clearPurchased} disabled={busyId !== null}>
+                Clear bought ({purchased.length})
+              </Button>
+            </div>
+            <div className="shopping-list__items">{purchased.map(entry => renderEntry(entry, true))}</div>
           </div>
         )}
       </>
@@ -1031,19 +1036,22 @@ function ShoppingList({ onOpenPlanner }) {
   };
 
   return (
-    <div className={undo ? 'shopping-list has-undo' : 'shopping-list'}>
-      <h2>Shopping</h2>
+    <div className={undo ? 'shopping-list shopping-list--has-undo' : 'shopping-list'}>
+      <h2 className="shopping-list__title">Shopping</h2>
 
       {migration.status === 'failed' && (
-        <div className="migration-banner" role="alert">
-          <p>Could not move your saved list to the new storage. Your items are safe on this device.</p>
-          <p className="need-hint">{migration.message}</p>
-          <button className="need-secondary" onClick={startup}>Retry</button>
+        <div className="shopping-list__banner" role="alert">
+          <p className="shopping-list__banner-text">
+            <AlertIcon size={18} />
+            <span>Could not move your saved list to the new storage. Your items are safe on this device.</span>
+          </p>
+          <p className="shopping-list__hint">{migration.message}</p>
+          <Button variant="secondary" onClick={startup}>Retry</Button>
         </div>
       )}
 
-      <div className="week-bar">
-        <div className="week-selector" role="radiogroup" aria-label="Week" onKeyDown={weekKeyDown}>
+      <div className="shopping-list__week-bar">
+        <div className="shopping-list__week-selector" role="radiogroup" aria-label="Week" onKeyDown={weekKeyDown}>
           {['this', 'next'].map(which => (
             <button
               key={which}
@@ -1051,40 +1059,39 @@ function ShoppingList({ onOpenPlanner }) {
               role="radio"
               tabIndex={selected === which ? 0 : -1}
               aria-checked={selected === which}
-              className={selected === which ? 'week-option selected' : 'week-option'}
+              className={selected === which ? 'shopping-list__week-option shopping-list__week-option--selected' : 'shopping-list__week-option'}
               onClick={() => selectWeek(which)}
               disabled={!weeks}
             >
-              {selected === which && <b aria-hidden="true">✓ </b>}
+              {selected === which && <CheckIcon size={18} />}
               {which === 'this' ? 'This week' : 'Next week'}
             </button>
           ))}
         </div>
         {selectedWeek && (
-          <p className="week-range">{shortDate(selectedWeek.start_date)} to {shortDate(selectedWeek.end_date)}</p>
+          <p className="shopping-list__week-range">{shortDate(selectedWeek.start_date)} to {shortDate(selectedWeek.end_date)}</p>
         )}
       </div>
 
-      <div className="review-bar">
-        <button
-          className="review-open"
+      <div className="shopping-list__review-bar">
+        <Button
           ref={reviewButtonRef}
           onClick={openReview}
           disabled={!data}
           aria-expanded={reviewOpen}
         >
           Review changes
-          {changeCount > 0 && <span className="count-badge" aria-label={`${changeCount} changes`}>{changeCount}</span>}
-        </button>
+          {changeCount > 0 && <span className="shopping-list__count" aria-label={`${changeCount} changes`}>{changeCount}</span>}
+        </Button>
         {data && (
-          <p className="review-summary">
+          <p className="shopping-list__review-summary">
             {changeCount === 0 ? 'List is up to date' : `${changeCount} change${changeCount === 1 ? '' : 's'} to review`}
             {warningCount > 0 ? `, ${warningCount} warning${warningCount === 1 ? '' : 's'}` : ''}
           </p>
         )}
       </div>
 
-      <p className="flash" role="status" aria-live="polite">{flash}</p>
+      <p className="shopping-list__flash" role="status" aria-live="polite">{flash}</p>
 
       {reviewOpen && data && (
         <ReviewChanges
@@ -1100,40 +1107,56 @@ function ShoppingList({ onOpenPlanner }) {
         />
       )}
 
-      <section className="needs-section" aria-label={`Needs for ${weekName}`}>
-        <h3>Needs for {weekName}</h3>
+      <section className="shopping-list__section" aria-label={`Needs for ${weekName}`}>
+        <h3 className="shopping-list__section-title">Needs for {weekName}</h3>
         {renderNeeds()}
       </section>
 
       {data && data.staples.length > 0 && (
-        <section className="needs-section" aria-label="Staples">
-          <h3>Staples ({data.staples.length})</h3>
+        <section className="shopping-list__section" aria-label="Staples">
+          <h3 className="shopping-list__section-title">Staples ({data.staples.length})</h3>
           {data.staples.map(renderStaple)}
         </section>
       )}
 
-      <div className="add-item">
+      <h3 className="shopping-list__section-title">Shopping list (all weeks)</h3>
+      {renderChecklist()}
+
+      <div className="shopping-list__add" role="group" aria-label="Add item">
         <input
+          className="shopping-list__input shopping-list__add-input"
           type="text"
           value={newItem}
           onChange={(e) => setNewItem(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && addItem()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              addItem();
+            } else if (e.key === 'Escape') {
+              setNewItem('');
+              setAddError('');
+            }
+          }}
           placeholder="Add item..."
           aria-label="Add item"
+          aria-invalid={addError ? true : undefined}
+          aria-describedby={addError ? 'shopping-add-error' : undefined}
           disabled={locked}
         />
-        <button onClick={addItem} disabled={locked || adding}>{adding ? 'Adding...' : 'Add'}</button>
+        <Button onClick={addItem} disabled={locked || !newItem.trim()} loading={adding}>
+          <PlusIcon />
+          Add
+        </Button>
       </div>
-      {addError && <p className="checkout-error" role="alert">{addError}</p>}
-
-      <h3 className="checklist-title">Shopping list (all weeks)</h3>
-      {renderChecklist()}
+      {addError && <InlineError id="shopping-add-error">{addError}</InlineError>}
 
       {undo && (
-        <div className="undo-snackbar" role="status" aria-live="polite">
-          <span>{undo.message}</span>
-          <button onClick={undoLast}>Undo</button>
-          <button className="undo-dismiss" aria-label="Dismiss" onClick={() => setUndo(null)}>×</button>
+        <div className="shopping-list__undo" role="status" aria-live="polite">
+          <span className="shopping-list__undo-message">{undo.message}</span>
+          <Button variant="quiet" onClick={undoLast}>Undo</Button>
+          <Button variant="icon" aria-label="Dismiss" onClick={() => setUndo(null)}>
+            <CloseIcon />
+          </Button>
         </div>
       )}
     </div>
