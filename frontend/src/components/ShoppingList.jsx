@@ -13,7 +13,8 @@ import {
   undoGroceryChanges,
   getReconcile,
   applyReconcile,
-  setInventoryMinimum
+  setInventoryMinimum,
+  setPackageSize
 } from '../api';
 import ReviewChanges from './ReviewChanges';
 import './ShoppingList.css';
@@ -153,6 +154,95 @@ function MinimumEditor({ row, onSaved, onClose }) {
         </button>
         <button type="button" onClick={onClose} disabled={busy}>Cancel</button>
         {row.minimum && <button type="button" onClick={() => save(null)} disabled={busy}>Remove minimum</button>}
+      </div>
+    </form>
+  );
+}
+
+// Same rule as the backend (reconcile.py): "es" after s/x/ch/sh, otherwise "s".
+function pluralLabel(label, count) {
+  if (count === 1) return label;
+  return label + (/(s|x|ch|sh)$/.test(label) ? 'es' : 's');
+}
+
+function PackageSizeEditor({ row, onSaved, onClose }) {
+  const [size, setSize] = useState(() => (row.package ? row.package.size : ''));
+  const [label, setLabel] = useState(() => (row.package && row.package.label !== 'package' ? row.package.label : ''));
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.focus();
+  }, []);
+
+  const save = async (value) => {
+    setBusy(true);
+    setError('');
+    try {
+      await setPackageSize({ item: row.item, unit_group: row.unit_group, size: value, label });
+      onSaved(value === null ? 'Package size removed.' : 'Package size saved.');
+    } catch (err) {
+      setError(err.message);
+      setTimeout(() => inputRef.current && inputRef.current.focus(), 0);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submit = (event) => {
+    event.preventDefault();
+    if (!busy && size.trim()) save(size);
+  };
+
+  const hint = row.unit_group === 'weight' ? 'e.g. 28 oz' : 'e.g. 1 qt';
+  const slug = idSlug(row.key);
+  return (
+    <form
+      className="minimum-editor"
+      onSubmit={submit}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && !busy) {
+          event.stopPropagation();
+          onClose();
+        }
+      }}
+      noValidate
+    >
+      <label>
+        Typical package size
+        <span className="minimum-field">
+          <input
+            type="text"
+            ref={inputRef}
+            value={size}
+            onChange={(e) => setSize(e.target.value)}
+            placeholder={hint}
+            maxLength={20}
+            aria-describedby={error ? `pkg-error-${slug}` : undefined}
+          />
+        </span>
+      </label>
+      <label>
+        Container (optional)
+        <span className="minimum-field">
+          <input
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="e.g. can"
+            maxLength={20}
+          />
+        </span>
+      </label>
+      {row.package && <p className="minimum-current">Current size: {row.package.size}</p>}
+      {error && <p className="checkout-error" id={`pkg-error-${slug}`} role="alert">{error}</p>}
+      <div className="minimum-actions">
+        <button type="submit" className="minimum-save" disabled={busy || !size.trim()}>
+          {busy ? 'Saving...' : 'Save'}
+        </button>
+        <button type="button" onClick={onClose} disabled={busy}>Cancel</button>
+        {row.package && <button type="button" onClick={() => save(null)} disabled={busy}>Remove size</button>}
       </div>
     </form>
   );
@@ -533,6 +623,25 @@ function ShoppingList({ onOpenPlanner }) {
     }
   };
 
+  const packageToggleRefs = useRef({});
+
+  // Close the package-size editor and put focus back on its toggle button.
+  const closePackageEditor = (pkgKey) => {
+    setEditorKey(null);
+    setTimeout(() => {
+      const toggle = packageToggleRefs.current[pkgKey];
+      if (toggle) toggle.focus();
+    }, 0);
+  };
+
+  const packageSaved = (pkgKey, message) => {
+    minimumSaved(message);
+    setTimeout(() => {
+      const toggle = packageToggleRefs.current[pkgKey];
+      if (toggle) toggle.focus();
+    }, 0);
+  };
+
   const minimumSaved = (message) => {
     setEditorKey(null);
     setFlash(message);
@@ -635,6 +744,30 @@ function ShoppingList({ onOpenPlanner }) {
     return showHint ? <p className="need-hint">Add stock first to set a minimum.</p> : null;
   };
 
+  const renderPackageControls = (row) => {
+    if (!row.package_eligible) return null;
+    const pkgKey = `pkg:${row.key}`;
+    return (
+      <>
+        <button
+          className="need-secondary"
+          ref={(node) => { if (node) packageToggleRefs.current[pkgKey] = node; else delete packageToggleRefs.current[pkgKey]; }}
+          onClick={() => openMinimumEditor({ key: pkgKey })}
+          aria-expanded={editorKey === pkgKey}
+        >
+          {row.package ? 'Change package size' : 'Set package size'}
+        </button>
+        {editorKey === pkgKey && (
+          <PackageSizeEditor
+            row={row}
+            onSaved={(message) => packageSaved(pkgKey, message)}
+            onClose={() => closePackageEditor(pkgKey)}
+          />
+        )}
+      </>
+    );
+  };
+
   const renderNeedCard = (row) => {
     const open = expanded === row.key;
     const stillNeeded = !row.covered_by_stock;
@@ -649,6 +782,15 @@ function ShoppingList({ onOpenPlanner }) {
           <div><dt>On hand</dt><dd>{row.available}</dd></div>
           <div className={stillNeeded ? 'need-still' : ''}><dt>Still to buy</dt><dd>{row.to_buy}</dd></div>
         </dl>
+        {row.package && row.package.packages > 0 && (
+          <dl className="need-figures">
+            <div>
+              <dt>Buy</dt>
+              <dd>{row.package.packages} {pluralLabel(row.package.label, row.package.packages)} ({row.package.buy})</dd>
+            </div>
+            <div><dt>Left after cooking</dt><dd>{row.package.remainder}</dd></div>
+          </dl>
+        )}
         <p className="need-meals">For: {mealsSummary(row.meals)}</p>
         <div
           className="need-status"
@@ -668,7 +810,9 @@ function ShoppingList({ onOpenPlanner }) {
             onClick={() => addIngredient(row)}
             disabled={locked || addingKey !== null || busyId !== null}
           >
-            {addingKey === row.key ? 'Adding...' : `Add ${row.to_buy} to shopping list`}
+            {addingKey === row.key ? 'Adding...' : row.package && row.package.packages > 0
+              ? `Add ${row.package.packages} ${pluralLabel(row.package.label, row.package.packages)} to shopping list`
+              : `Add ${row.to_buy} to shopping list`}
           </button>
         )}
         {rowError && rowError.key === row.key && <p className="checkout-error" role="alert">{rowError.message}</p>}
@@ -698,6 +842,7 @@ function ShoppingList({ onOpenPlanner }) {
             {row.covered && row.entry && <p>On your list as "{row.entry.name}".</p>}
           </div>
         )}
+        {renderPackageControls(row)}
         {renderMinimumControls(row, true)}
       </article>
     );

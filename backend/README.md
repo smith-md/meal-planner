@@ -215,6 +215,18 @@ Removes that meal from the week and returns the updated week plan.
 - `GET /inventory/staples` – every stock row with a minimum (`id`, `item`, `unit`, `location`, `quantity`, `minimum`), including empty rows.
 - `PUT /inventory/{item_id}/minimum` with `{ "minimum": "2" }` – set the minimum for that ingredient (it applies across fridge and pantry rows; the other rows' minimums are cleared). `0` is allowed and warns only when the item runs out; `null` clears it. 400 for an invalid value, 404 for an unknown id.
 
+#### Package sizes
+
+Typical package sizes of ingredients, stored in the `package_sizes` table (created at startup). They are global (not per week), keyed by ingredient and unit group, and do not require any stock.
+
+- `GET /package-sizes` – all saved sizes as `[{ "item", "unit_group", "size", "label" }]`, ordered by item then group. `size` is shown in short form (for example `28 oz`).
+- `PUT /package-sizes` with `{ "item": "crushed tomatoes", "unit_group": "weight", "size": "28 oz", "label": "can" }` – save (upsert) the size for that item and group and return `{ "item", "unit_group", "size", "label" }`. `item` is lower-cased and whitespace-normalised.
+  - `unit_group` must be `weight` or `volume`; any other group (`count`, `clove`, `bunch`, `head`, `can`, `bag`, `package`, ...) returns 400.
+  - `size` is a number (whole, decimal, or fraction such as `1 1/2`) followed by a unit that belongs to the group (for example `28 oz`, `1 lb`, `1 qt`, `16 fl oz`), at most 20 characters. A missing unit, a unit from another group, zero, or a size too small to be meaningful returns 400.
+  - `size: null` (or blank) deletes the saved size and returns `null`.
+  - `label` is optional (at most 20 characters; no brackets, commas, or semicolons, otherwise 400). When absent, reconcile reports the label `package`.
+  - Over-long `item`, `unit_group`, `size`, or `label` returns 422.
+
 #### Grocery entries (server-side shopping list)
 
 Each entry has a stable `entry_key`, a `source` (`manual`, `added`, `plan`, `legacy`), an optional `week_plan_id`, `purchased`, a `purchase_id`, and an optional `credit` (`amount`, `location`).
@@ -236,7 +248,8 @@ Stock is allocated sequentially by week: weeks from the current one up to the se
 
 The preview contains:
 
-- `ingredients` – per ingredient `demand`, `on_hand`, `held_for_earlier_weeks`, `available`, `to_buy`, `add_name`, `minimum`, `inventory_id`, `meals` (which meals need it), `covered` and `entry` (an unpurchased entry already covers it), `covered_by_stock` (nothing left to buy), and `warnings`.
+- `ingredients` – per ingredient `demand`, `on_hand`, `held_for_earlier_weeks`, `available`, `to_buy`, `add_name`, `unit_group`, `package_eligible`, `package`, `minimum`, `inventory_id`, `meals` (which meals need it), `covered` and `entry` (an unpurchased entry already covers it), `covered_by_stock` (nothing left to buy), and `warnings`.
+- Package fields – `unit_group` is the row's unit group; `package_eligible` is true only for `weight` and `volume`. `package` is `null` when no size is saved or the row is not eligible; otherwise `{ "size", "label", "packages", "buy", "remainder" }`: `packages` is the whole number of packages needed to cover `to_buy` (0 when stock covers it), `buy` the total amount of those packages, `remainder` the projected leftover (`buy` minus `to_buy`), and `label` the container word (`package` by default). For a row with a package, `add_name` and the `plan:` entry hold the full package amount, for example `28 ounces of crushed tomatoes (1 can)` (label pluralised for several packages, e.g. `2 cans`), and the entry's quantity is that full amount, so checking it off credits the full amount to stock. A change to the size or label changes the entry name, so it appears as an `update` (the quantity may be unchanged) and changes the `fingerprint`.
 - `warnings` – `below_minimum` (stock at or below the minimum) and `short` (demand above the stock available to that week).
 - `unmeasured` – lines with no parseable quantity, with the meals that use them. `no_yield` – meals with no yield. `staples` – tracked ingredients with a minimum that the week does not use. `position` is `this`, `next`, or `later`.
 - `changes` – `add`, `update` (`from_quantity`, `to_quantity`), and `remove` for the week's `plan:` entries, and `fingerprint`, a hash of `changes`. Purchased plan entries are never changed or removed. An unpurchased `manual:`, `added:`, or `legacy:` entry for the same ingredient counts as covering it, so no plan entry is added.

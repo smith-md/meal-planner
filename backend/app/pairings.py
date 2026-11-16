@@ -61,6 +61,10 @@ class Ingredient:
                 quantity = f"{whole} {quantity}"
         else:
             quantity = f"{value:.4g}"
+            if "e" in quantity:  # never exponent text: parse_amount cannot read it back
+                quantity = f"{value:.4f}".rstrip("0").rstrip(".") if abs(value) < 1 else f"{value:.0f}"
+            if quantity in ("", "-0"):
+                quantity = "0"
         return quantity
 
     def describe(self, base_quantity):
