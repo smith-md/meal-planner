@@ -213,6 +213,20 @@ class MinimumUpdate(BaseModel):
     minimum: Optional[str] = Field(None, max_length=20)
 
 
+class PackageSizeUpdate(BaseModel):
+    item: str = Field(..., min_length=1, max_length=200)
+    unit_group: str = Field(..., min_length=1, max_length=50)
+    size: Optional[str] = Field(None, max_length=20)  # null removes the size
+    label: Optional[str] = Field(None, max_length=20)
+
+
+class PackageSizeOut(BaseModel):
+    item: str
+    unit_group: str
+    size: str
+    label: Optional[str] = None
+
+
 class Staple(BaseModel):
     id: int
     item: str
@@ -320,10 +334,21 @@ class ReconcileEntryRef(BaseModel):
     purchased: bool
 
 
+class ReconcilePackage(BaseModel):
+    size: str
+    label: str
+    packages: int
+    buy: str
+    remainder: str
+
+
 class ReconcileIngredient(BaseModel):
     key: str
     item: str
     unit: str
+    unit_group: str
+    package_eligible: bool
+    package: Optional[ReconcilePackage] = None
     demand: str
     on_hand: str
     held_for_earlier_weeks: str

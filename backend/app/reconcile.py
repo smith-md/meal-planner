@@ -10,6 +10,7 @@ Skipped and cooked meals are not demand; planned meals on past days of the curre
 """
 import hashlib
 import json
+import math
 from collections import defaultdict
 from datetime import date, timedelta
 
@@ -18,7 +19,7 @@ from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from . import grocery, models, pairings
+from . import grocery, inventory, models, pairings
 
 EPSILON = pairings.EPSILON
 
@@ -167,6 +168,7 @@ def compute(db: Session, week, ref_date=None):
 
     totals, first, meals, unmeasured, no_yield, meal_count = _week_demand(db, week, True)
     entries = grocery.list_entries(db)
+    sizes = inventory.package_sizes_by_key(db)
 
     def covering(key):
         return next((entry for entry in entries
@@ -198,11 +200,30 @@ def compute(db: Session, week, ref_date=None):
         to_buy = max(demand - available, 0.0)
         to_buy = 0.0 if to_buy <= EPSILON else to_buy
         entry = covering(key)
+        eligible = key[1] in inventory.PACKAGE_GROUPS
+        size_row = sizes.get(key) if eligible else None
+        package = None
+        buy_base = to_buy
         add_name = ingredient.describe(to_buy) if to_buy else ""
+        if size_row:
+            size_base = size_row.base_quantity
+            packages = math.ceil(to_buy / size_base - EPSILON) if to_buy > 0 else 0
+            buy_base = packages * size_base
+            remainder = buy_base - to_buy
+            remainder = 0.0 if remainder <= EPSILON else remainder
+            label = size_row.label or inventory.PACKAGE_LABEL_DEFAULT
+            if packages:
+                plural = "" if packages == 1 else "es" if label.endswith(("s", "x", "ch", "sh")) else "s"
+                add_name = f"{ingredient.describe(buy_base)} ({packages} {label}{plural})"
+            package = {"size": inventory.package_size_text(size_row), "label": label, "packages": packages,
+                       "buy": amount_text(ingredient, buy_base), "remainder": amount_text(ingredient, remainder)}
         ingredients.append({
             "key": key_text(key),
             "item": ingredient.item,
             "unit": display_unit(ingredient),
+            "unit_group": key[1],
+            "package_eligible": eligible,
+            "package": package,
             "demand": amount_text(ingredient, demand),
             "on_hand": amount_text(ingredient, stock.get(key, 0.0)),
             "held_for_earlier_weeks": amount_text(ingredient, stock.get(key, 0.0) - available)
@@ -230,7 +251,7 @@ def compute(db: Session, week, ref_date=None):
                 desired[plan_key(week.id, key)] = {
                     "entry_key": plan_key(week.id, key), "name": bounded_name(add_name),
                     "item": ingredient.item, "unit_group": key[1], "unit": ingredient.unit,
-                    "quantity_base": to_buy, "note": None, "ingredient": ingredient,
+                    "quantity_base": buy_base, "note": None, "ingredient": ingredient,
                 }
 
     unmeasured_out = []
@@ -274,7 +295,8 @@ def compute(db: Session, week, ref_date=None):
         if wanted is None:
             removes.append(entry)
         elif wanted["quantity_base"] is not None and (
-                entry.quantity_base is None or abs(entry.quantity_base - wanted["quantity_base"]) > EPSILON):
+                entry.quantity_base is None or abs(entry.quantity_base - wanted["quantity_base"]) > EPSILON
+                or entry.name != wanted["name"]):
             updates.append((entry, wanted))
 
     changes = {

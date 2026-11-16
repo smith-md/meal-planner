@@ -233,6 +233,17 @@ export function getStaples() {
   return request(`${API_BASE_URL}/inventory/staples`, undefined, 'Could not load your staples.');
 }
 
+export function listPackageSizes() {
+  return request(`${API_BASE_URL}/package-sizes`, undefined, 'Could not load package sizes.');
+}
+
+// size null removes the saved package size.
+export function setPackageSize({ item, unit_group, size, label }) {
+  return request(`${API_BASE_URL}/package-sizes`,
+    jsonOptions('PUT', { item, unit_group, size, label: label || null }),
+    'Enter a size like 28 oz.');
+}
+
 export function setInventoryMinimum(itemId, minimum) {
   return request(`${API_BASE_URL}/inventory/${itemId}/minimum`, jsonOptions('PUT', { minimum }),
     'Enter a quantity like 2 or 1/2.');

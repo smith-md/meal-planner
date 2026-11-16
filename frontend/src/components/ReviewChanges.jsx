@@ -119,8 +119,12 @@ function ReviewChanges({ changes, weekLabel, busy, error, nothingChanged, locked
                   <ul>
                     {changes.update.map(change => (
                       <li key={change.entry_key}>
-                        <b aria-hidden="true">~</b> {change.item || change.name}: {change.from_quantity}
-                        {' '}<span aria-label="changes to">→</span> {change.to_quantity}
+                        <b aria-hidden="true">~</b> {change.item || change.name}:{' '}
+                        {change.from_quantity === change.to_quantity && change.name ? (
+                          `rename to "${change.name}"`
+                        ) : (
+                          <>{change.from_quantity} <span aria-label="changes to">→</span> {change.to_quantity}</>
+                        )}
                       </li>
                     ))}
                   </ul>

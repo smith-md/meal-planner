@@ -86,6 +86,19 @@ class InventoryItem(Base):
     minimum = Column(Float, nullable=True)
 
 
+class PackageSize(Base):
+    """Typical package size of an ingredient (weight or volume only), keyed like stock."""
+    __tablename__ = "package_sizes"
+    __table_args__ = (UniqueConstraint("item", "unit_group"),)
+
+    id = Column(Integer, primary_key=True)
+    item = Column(String, nullable=False)
+    unit_group = Column(String, nullable=False)
+    unit = Column(String, nullable=False)  # canonical unit the size was entered in
+    base_quantity = Column(Float, nullable=False)
+    label = Column(String, nullable=True)  # container word such as "can"; NULL means "package"
+
+
 class InventoryPurchase(Base):
     """One credited purchase. purchase_id is single-use, which makes crediting idempotent."""
     __tablename__ = "inventory_purchases"

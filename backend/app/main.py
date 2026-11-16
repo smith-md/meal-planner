@@ -180,6 +180,17 @@ def get_staples(db: Session = Depends(get_db)):
     return [inventory.serialize_staple(row) for row in inventory.list_staples(db)]
 
 
+@app.get("/package-sizes", response_model=List[schemas.PackageSizeOut])
+def list_package_sizes(db: Session = Depends(get_db)):
+    return [inventory.serialize_package_size(row) for row in inventory.list_package_sizes(db)]
+
+
+@app.put("/package-sizes", response_model=Optional[schemas.PackageSizeOut])
+def set_package_size(data: schemas.PackageSizeUpdate, db: Session = Depends(get_db)):
+    row = inventory.set_package_size(db, data.item, data.unit_group, data.size, data.label)
+    return inventory.serialize_package_size(row) if row else None
+
+
 @app.put("/inventory/{item_id}/minimum", response_model=schemas.Staple)
 def set_inventory_minimum(item_id: int, data: schemas.MinimumUpdate, db: Session = Depends(get_db)):
     return inventory.serialize_staple(inventory.set_minimum(db, item_id, data.minimum))

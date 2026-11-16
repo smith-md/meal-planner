@@ -190,6 +190,93 @@ def set_minimum(db: Session, item_id, minimum):
     return row
 
 
+PACKAGE_GROUPS = {"weight", "volume"}
+PACKAGE_LABEL_DEFAULT = "package"
+MIN_PACKAGE_BASE = 0.02  # base units (oz / cup); stops absurd package counts
+SHORT_UNITS = {
+    "ounce": "oz", "pound": "lb", "gram": "g", "kilogram": "kg", "cup": "cup", "tablespoon": "tbsp",
+    "teaspoon": "tsp", "fluid ounce": "fl oz", "pint": "pt", "quart": "qt", "gallon": "gal",
+    "milliliter": "ml", "liter": "l",
+}
+PACKAGE_SIZE_PATTERN = re.compile(r"^(\d+\s+\d+/\d+|\d+/\d+|\d*\.\d+|\d+)\s*([a-z][a-z ]*)$")
+
+
+def package_size_help(unit_group):
+    example = "28 oz or 1 lb" if unit_group == "weight" else "1 qt or 16 fl oz"
+    return f"Enter a size like {example}."
+
+
+def parse_package_size(size, unit_group):
+    """(canonical unit, base quantity) of a typed size such as "28 oz"; 400 when unusable."""
+    help_text = package_size_help(unit_group)
+    text = " ".join(size.lower().split())
+    match = PACKAGE_SIZE_PATTERN.match(text)
+    if not match:
+        raise HTTPException(400, help_text)
+    number, unit_text = match.groups()
+    unit = pairings.UNIT_ALIASES.get(unit_text.strip())
+    if unit is None or pairings.UNIT_GROUPS.get(unit) != unit_group:
+        raise HTTPException(400, help_text)
+    try:
+        value = float(sum(Fraction(part) for part in number.split()))
+    except (ValueError, ZeroDivisionError, OverflowError):
+        raise HTTPException(400, help_text)
+    base = value * pairings.Ingredient(0, unit, "").factor
+    if not (base == base) or base in (float("inf"), float("-inf")) or base < MIN_PACKAGE_BASE:
+        raise HTTPException(400, help_text)
+    return unit, base
+
+
+def package_size_text(row):
+    ingredient = pairings.Ingredient(0, row.unit, row.item)
+    return f"{ingredient.display_quantity(row.base_quantity)} {SHORT_UNITS.get(row.unit, row.unit)}"
+
+
+def serialize_package_size(row):
+    return {"item": row.item, "unit_group": row.unit_group, "size": package_size_text(row), "label": row.label}
+
+
+def list_package_sizes(db: Session):
+    return db.query(models.PackageSize).order_by(models.PackageSize.item, models.PackageSize.unit_group).all()
+
+
+def package_sizes_by_key(db: Session):
+    return {(row.item, row.unit_group): row for row in list_package_sizes(db)}
+
+
+def set_package_size(db: Session, item, unit_group, size, label):
+    """Save (upsert) or remove (size None) the package size of an ingredient. Returns the row or None."""
+    item = " ".join(item.lower().split())
+    if not item:
+        raise HTTPException(400, "Choose an ingredient.")
+    if unit_group not in PACKAGE_GROUPS:
+        raise HTTPException(400, "Package sizes are only for ingredients measured by weight or volume.")
+    for attempt in range(2):
+        row = db.query(models.PackageSize).filter_by(item=item, unit_group=unit_group).first()
+        if size is None or not size.strip():
+            if row:
+                db.delete(row)
+                db.commit()
+            return None
+        unit, base = parse_package_size(size, unit_group)
+        label_text = " ".join((label or "").split()) or None
+        if label_text and re.search(r"[(),;]", label_text):
+            raise HTTPException(400, "The container name cannot contain brackets, commas or semicolons.")
+        try:
+            if not row:
+                row = models.PackageSize(item=item, unit_group=unit_group, unit=unit, base_quantity=base)
+                db.add(row)
+            row.unit, row.base_quantity, row.label = unit, base, label_text
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            if attempt == 1:
+                raise
+            continue
+        db.refresh(row)
+        return row
+
+
 def list_staples(db: Session):
     """Every stock row with a minimum, including empty rows that list_inventory hides."""
     return (
