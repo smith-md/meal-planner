@@ -1,8 +1,78 @@
 import { useState, useEffect } from 'react';
-import { fetchMeals, createMeal, updateMealYield } from '../api';
+import { fetchMeals, createMeal, updateMealYield, updateMealDetails } from '../api';
+import { EMPTY_FILTERS, filterMeals, filtersActive } from '../mealFilters';
 import './MealsLibrary.css';
 
-const EMPTY_FORM = { name: '', notes: '', tags: '', ingredients: '', yield_servings: '' };
+const EMPTY_FORM = {
+  name: '', notes: '', tags: '', ingredients: '', yield_servings: '',
+  prep_minutes: '', cook_minutes: '', make_ahead: false
+};
+
+const minutesOrNull = (value) => (value === '' ? null : Number(value));
+
+function DetailsControl({ meal, onSaved }) {
+  const [prep, setPrep] = useState(meal.prep_minutes ?? '');
+  const [cook, setCook] = useState(meal.cook_minutes ?? '');
+  const [makeAhead, setMakeAhead] = useState(meal.make_ahead);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const prepChanged = String(prep) !== String(meal.prep_minutes ?? '');
+  const cookChanged = String(cook) !== String(meal.cook_minutes ?? '');
+  const aheadChanged = makeAhead !== meal.make_ahead;
+  const unchanged = !prepChanged && !cookChanged && !aheadChanged;
+
+  const save = async () => {
+    // Send only what changed so the other fields are left alone.
+    const changes = {};
+    if (prepChanged) changes.prep_minutes = minutesOrNull(prep);
+    if (cookChanged) changes.cook_minutes = minutesOrNull(cook);
+    if (aheadChanged) changes.make_ahead = makeAhead;
+    setSaving(true);
+    setError('');
+    try {
+      await updateMealDetails(meal.id, changes);
+      await onSaved();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="meal-details">
+      <label>
+        Prep (min){' '}
+        <input
+          type="number" min="0" max="1440" step="1"
+          value={prep}
+          onChange={(e) => setPrep(e.target.value)}
+          aria-label={`Prep minutes for ${meal.name}`}
+        />
+      </label>
+      <label>
+        Cook (min){' '}
+        <input
+          type="number" min="0" max="1440" step="1"
+          value={cook}
+          onChange={(e) => setCook(e.target.value)}
+          aria-label={`Cook minutes for ${meal.name}`}
+        />
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={makeAhead}
+          onChange={(e) => setMakeAhead(e.target.checked)}
+          aria-label={`Make-ahead ${meal.name}`}
+        />{' '}
+        Make-ahead
+      </label>
+      <button type="button" onClick={save} disabled={saving || unchanged}>Save times</button>
+      {error && <p role="alert" className="yield-error">{error}</p>}
+    </div>
+  );
+}
 
 function YieldControl({ meal, onSaved }) {
   const [value, setValue] = useState(meal.yield_servings ?? '');
@@ -57,6 +127,7 @@ function MealsLibrary() {
   const [imageFile, setImageFile] = useState(null);
   const [editingMeal, setEditingMeal] = useState(null);
   const [formData, setFormData] = useState(EMPTY_FORM);
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
 
   useEffect(() => {
     loadMeals();
@@ -76,7 +147,9 @@ function MealsLibrary() {
     if (formData.name.trim()) {
       await createMeal({
         ...formData,
-        yield_servings: formData.yield_servings === '' ? null : Number(formData.yield_servings)
+        yield_servings: formData.yield_servings === '' ? null : Number(formData.yield_servings),
+        prep_minutes: minutesOrNull(formData.prep_minutes),
+        cook_minutes: minutesOrNull(formData.cook_minutes)
       });
       setFormData(EMPTY_FORM);
       setShowNewMealForm(false);
@@ -99,6 +172,7 @@ function MealsLibrary() {
       if (response.ok) {
         const recipeData = await response.json();
         setFormData({
+          ...EMPTY_FORM,
           name: recipeData.name || '',
           notes: recipeData.notes || '',
           tags: recipeData.tags || '',
@@ -136,6 +210,7 @@ function MealsLibrary() {
       if (response.ok) {
         const recipeData = await response.json();
         setFormData({
+          ...EMPTY_FORM,
           name: recipeData.name || '',
           notes: recipeData.notes || '',
           tags: recipeData.tags || '',
@@ -157,12 +232,13 @@ function MealsLibrary() {
     }
   };
 
-  const filteredMeals = meals.filter(meal =>
-    meal.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (meal.notes && meal.notes.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (meal.tags && meal.tags.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (meal.ingredients && meal.ingredients.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredMeals = filterMeals(meals, searchTerm, filters);
+  const timeFilterActive = filters.maxPrep !== '' || filters.maxCook !== '';
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setFilters(EMPTY_FILTERS);
+  };
 
   return (
     <div className="meals-library">
@@ -273,6 +349,34 @@ function MealsLibrary() {
               onChange={(e) => setFormData({...formData, yield_servings: e.target.value})}
             />
           </label>
+          <div className="time-fields">
+            <label className="yield-field">
+              Prep time (minutes)
+              <input
+                type="number" min="0" max="1440" step="1"
+                placeholder="optional"
+                value={formData.prep_minutes}
+                onChange={(e) => setFormData({...formData, prep_minutes: e.target.value})}
+              />
+            </label>
+            <label className="yield-field">
+              Cook time (minutes)
+              <input
+                type="number" min="0" max="1440" step="1"
+                placeholder="optional"
+                value={formData.cook_minutes}
+                onChange={(e) => setFormData({...formData, cook_minutes: e.target.value})}
+              />
+            </label>
+            <label className="make-ahead-field">
+              <input
+                type="checkbox"
+                checked={formData.make_ahead}
+                onChange={(e) => setFormData({...formData, make_ahead: e.target.checked})}
+              />{' '}
+              Can be made ahead
+            </label>
+          </div>
           <textarea
             placeholder="Notes"
             value={formData.notes}
@@ -298,13 +402,65 @@ function MealsLibrary() {
         <span className="results-count">{filteredMeals.length} meal{filteredMeals.length !== 1 ? 's' : ''}</span>
       </div>
 
+      <div className="filter-section">
+        <label>
+          Max prep (min){' '}
+          <input
+            type="number" min="0" max="1440" step="1"
+            value={filters.maxPrep}
+            onChange={(e) => setFilters({...filters, maxPrep: e.target.value})}
+            aria-label="Maximum prep minutes"
+          />
+        </label>
+        <label>
+          Max cook (min){' '}
+          <input
+            type="number" min="0" max="1440" step="1"
+            value={filters.maxCook}
+            onChange={(e) => setFilters({...filters, maxCook: e.target.value})}
+            aria-label="Maximum cook minutes"
+          />
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={filters.makeAheadOnly}
+            onChange={(e) => setFilters({...filters, makeAheadOnly: e.target.checked})}
+          />{' '}
+          Make-ahead only
+        </label>
+        <button
+          type="button"
+          className="clear-filters-btn"
+          onClick={clearFilters}
+          disabled={!filtersActive(searchTerm, filters)}
+        >
+          Clear filters
+        </button>
+        {timeFilterActive && (
+          <p className="filter-note">Meals with no prep or cook time set are hidden while a time filter is on.</p>
+        )}
+      </div>
+
       <div className="meals-grid">
         {filteredMeals.map(meal => (
           <div key={meal.id} className="meal-card">
             <div className="meal-card-header">
               <h3>{meal.name}</h3>
             </div>
+            {(meal.prep_minutes != null || meal.cook_minutes != null || meal.make_ahead) && (
+              <div className="meal-times">
+                {meal.prep_minutes != null && <span>Prep {meal.prep_minutes} min</span>}
+                {meal.cook_minutes != null && <span>Cook {meal.cook_minutes} min</span>}
+                {meal.make_ahead && <span className="make-ahead-badge">Make-ahead</span>}
+              </div>
+            )}
             <YieldControl key={`${meal.id}-${meal.yield_servings ?? ''}`} meal={meal} onSaved={loadMeals} />
+            <DetailsControl
+              key={`${meal.id}-${meal.prep_minutes ?? ''}-${meal.cook_minutes ?? ''}-${meal.make_ahead}`}
+              meal={meal}
+              onSaved={loadMeals}
+            />
             {meal.tags && (
               <div className="meal-tags">
                 <strong>Tags:</strong> {meal.tags}
@@ -326,7 +482,11 @@ function MealsLibrary() {
 
       {filteredMeals.length === 0 && (
         <div className="no-meals">
-          <p>No meals found. Create your first meal to get started!</p>
+          <p>
+            {meals.length > 0 && filtersActive(searchTerm, filters)
+              ? 'No meals match the current search and filters.'
+              : 'No meals found. Create your first meal to get started!'}
+          </p>
         </div>
       )}
     </div>

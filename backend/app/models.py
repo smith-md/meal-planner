@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import Column, Integer, String, Date, ForeignKey, Float, Boolean, DateTime, Index, UniqueConstraint
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import expression
 from .database import Base
 
 
@@ -31,6 +32,9 @@ class Meal(Base):
     tags = Column(String, nullable=True)
     ingredients = Column(String, nullable=True)
     yield_servings = Column(Integer, nullable=True)
+    prep_minutes = Column(Integer, nullable=True)
+    cook_minutes = Column(Integer, nullable=True)
+    make_ahead = Column(Boolean, nullable=False, default=False, server_default=expression.false())
 
     week_plans = relationship("WeekPlan", secondary="week_meals", back_populates="meals", viewonly=True)
 

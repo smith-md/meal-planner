@@ -349,6 +349,67 @@
   color: #b00020;
 }
 
+.filter-section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.filter-section input[type='number'] {
+  width: 4.5rem;
+  min-height: 36px;
+  padding: 0.25rem;
+}
+
+.clear-filters-btn {
+  min-height: 36px;
+}
+
+.filter-note {
+  flex-basis: 100%;
+  margin: 0;
+  color: #8a5a00;
+  font-size: 0.85rem;
+}
+
+.meal-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.make-ahead-badge {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #10b981;
+  border-radius: 999px;
+  padding: 0 0.5rem;
+}
+
+.meal-details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0.5rem 0;
+}
+
+.meal-details input[type='number'] {
+  width: 4.5rem;
+  padding: 0.25rem;
+}
+
+.meal-form .time-fields input[type='checkbox'] {
+  width: auto;
+  min-height: 0;
+  margin-bottom: 0;
+}
+
 .yield-field {
   display: flex;
   flex-direction: column;

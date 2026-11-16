@@ -19,6 +19,9 @@ Base = declarative_base()
 # Columns added after the first release; create_all does not alter existing tables.
 _ADDED_COLUMNS = (
     ("meals", "yield_servings", "INTEGER"),
+    ("meals", "prep_minutes", "INTEGER"),
+    ("meals", "cook_minutes", "INTEGER"),
+    ("meals", "make_ahead", "BOOLEAN NOT NULL DEFAULT 0"),
     ("week_meals", "servings", "INTEGER"),
     ("week_meals", "day_id", "INTEGER"),
     ("week_meals", "status", "VARCHAR"),

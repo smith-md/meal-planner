@@ -77,6 +77,14 @@ def update_meal_yield(meal_id: int, data: schemas.MealYieldUpdate, db: Session =
     return meal
 
 
+@app.patch("/meals/{meal_id}/details", response_model=schemas.Meal)
+def update_meal_details(meal_id: int, data: schemas.MealDetailsUpdate, db: Session = Depends(get_db)):
+    meal = crud.update_meal_details(db, meal_id, data)
+    if not meal:
+        raise HTTPException(status_code=404, detail="Meal not found")
+    return meal
+
+
 @app.get("/week-plans/current", response_model=schemas.WeekPlan)
 def get_current_week_plan(ref_date: Optional[date] = None, db: Session = Depends(get_db)):
     return crud.get_current_week_plan(db, ref_date)

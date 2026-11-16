@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, StrictBool, StrictInt, field_validator, model_validator
 from datetime import date, datetime
 from typing import Any, List, Literal, Optional
 
@@ -9,6 +9,9 @@ class MealBase(BaseModel):
     tags: Optional[str] = None
     ingredients: Optional[str] = None
     yield_servings: Optional[int] = Field(None, ge=1, le=99)
+    prep_minutes: Optional[StrictInt] = Field(None, ge=0, le=1440)
+    cook_minutes: Optional[StrictInt] = Field(None, ge=0, le=1440)
+    make_ahead: StrictBool = False
 
 
 class MealCreate(MealBase):
@@ -126,6 +129,20 @@ class CookResult(BaseModel):
 
 class MealYieldUpdate(BaseModel):
     yield_servings: Optional[int] = Field(None, ge=1, le=99)
+
+
+class MealDetailsUpdate(BaseModel):
+    """Partial update: only fields present in the body are changed."""
+    prep_minutes: Optional[StrictInt] = Field(None, ge=0, le=1440)
+    cook_minutes: Optional[StrictInt] = Field(None, ge=0, le=1440)
+    make_ahead: Optional[StrictBool] = None
+
+    @field_validator("make_ahead")
+    @classmethod
+    def make_ahead_not_null(cls, value):
+        if value is None:
+            raise ValueError("make_ahead cannot be null")
+        return value
 
 
 class PairingIngredientCreate(BaseModel):

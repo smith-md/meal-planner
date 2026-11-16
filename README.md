@@ -5,7 +5,7 @@ A personal web application for weekly meal planning, shared grocery list managem
 ## Features
 
 - **Week Planner**: Plan meals for each day of the week with visual day states (Need Meal / No Meal / Neutral)
-- **Meal Library**: Create and search meals with tags, notes, and ingredients
+- **Meal Library**: Create and search meals with tags, notes, and ingredients; optionally record prep time, cook time, and a make-ahead flag, and filter by them
 - **Shopping**: A server-side shopping list that keeps manual items and purchase state, plus a This week / Next week view that compares what the planned meals need with your stock, warns about low staples and shortfalls, and previews list changes before applying them
 - **Recipe yields and planned servings**: Each recipe can store how many servings it makes, and each planned meal has its own servings; the shopping list and pairings scale to match
 - **Clean UI**: Modern design with light gradients and intuitive interactions
@@ -66,6 +66,11 @@ The app will be available at
 -  - Add meal to day
 -  - Remove meal from day
 
+### Prep time, cook time, and make-ahead
+
+- Each meal has an optional `prep_minutes` and `cook_minutes` (whole minutes, 0-1440; `null` means not set) and a `make_ahead` flag (default `false`). They can be set on the new-meal form or edited on the meal card, and are saved with `PATCH /meals/{id}/details` (see `backend/README.md`).
+- The Meals Library can filter by a maximum prep time, a maximum cook time, and make-ahead only. Filters combine with each other and with the text search; "Clear filters" resets them. Meals with no prep (or cook) time set are hidden while that time filter is active. Filtering happens in the browser.
+
 ### Yields and planned servings
 
 - A recipe's `yield_servings` (whole number 1-99, optional) is set when creating the meal or with `PATCH /meals/{id}` (body `{"yield_servings": 4}`; `null` clears it).
@@ -73,7 +78,7 @@ The app will be available at
 - Ingredient quantities are scaled by `servings / yield` before the shopping list and pairings are calculated. Fractions and compatible units are combined.
 - If a recipe has no yield, quantities are used as written (factor 1) and the UI shows a note. Ingredient lines whose quantity cannot be parsed are not scaled and are listed separately, with a note when the recipe would otherwise be scaled.
 - Each pairing row has `needs_more` and `shortfall`; changing servings recalculates the remaining amount and flags a pairing that now needs more.
-- Set `DATABASE_URL` to override the default SQLite file (`sqlite:///./meal_planner.db`). On startup the backend adds the `meals.yield_servings` and `week_meals.servings` columns to existing databases.
+- Set `DATABASE_URL` to override the default SQLite file (`sqlite:///./meal_planner.db`). On startup the backend adds the `meals.yield_servings`, `meals.prep_minutes`, `meals.cook_minutes`, `meals.make_ahead` and `week_meals.servings` columns to existing databases.
 - Backend tests: from `backend/`, run `pip install -r requirements-dev.txt` then `pytest`.
 
 ### Fridge and pantry inventory
