@@ -41,6 +41,61 @@
   padding: 0.5rem 0;
 }
 
+.stock-suggestions {
+  border-top: 1px solid #ddd;
+  padding-top: 1rem;
+}
+
+.stock-suggestions article {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+.stock-suggestion-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.stock-suggestions button {
+  min-height: 44px;
+  padding: 0.5rem;
+}
+
+.stock-suggestions ul {
+  padding: 0;
+  list-style: none;
+}
+
+.stock-suggestions li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+}
+
+.stock-badge {
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+/* Distinguished by text and border style as well as colour. */
+.stock-confirmed {
+  border: 2px solid #2e7d32;
+  background: #e8f5e9;
+}
+
+.stock-projected {
+  border: 2px dashed #8a5a00;
+  background: #fff4e0;
+}
+
 .week-planner {
   background: white;
   border-radius: 12px;

@@ -441,3 +441,55 @@ class ReconcileApplyResult(BaseModel):
     reconcile: ReconcileResult
     summary: ReconcileSummary
     undo: Optional[GroceryUndo] = None
+
+
+class StockUse(BaseModel):
+    key: str
+    item: str
+    unit: str
+    used: str
+    needed: str
+    available: str
+    source: Literal["confirmed", "projected"]
+    locations: List[Literal["fridge", "pantry"]] = []
+    after_meals: List[ReconcileMeal] = []
+
+
+class StockGrocery(BaseModel):
+    key: str
+    item: str
+    amount: str
+    name: str
+    partial: bool
+
+
+class StockSuggestion(BaseModel):
+    meal_id: int
+    name: str
+    servings: Optional[int] = None
+    coverage_percent: int
+    covered_count: int
+    ingredient_count: int
+    uses: List[StockUse]
+    groceries: List[StockGrocery]
+    unmeasured: List[str]
+
+
+class StockRemainder(BaseModel):
+    key: str
+    item: str
+    unit: str
+    amount: str
+    source: Literal["confirmed", "projected"]
+    locations: List[Literal["fridge", "pantry"]] = []
+    after_meals: List[ReconcileMeal] = []
+
+
+class StockSuggestionsResult(BaseModel):
+    week_plan_id: int
+    start_date: date
+    end_date: date
+    ref_date: date
+    position: Literal["this", "next", "later"]
+    remainders: List[StockRemainder]
+    suggestions: List[StockSuggestion]

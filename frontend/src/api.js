@@ -248,3 +248,8 @@ export function setInventoryMinimum(itemId, minimum) {
   return request(`${API_BASE_URL}/inventory/${itemId}/minimum`, jsonOptions('PUT', { minimum }),
     'Enter a quantity like 2 or 1/2.');
 }
+
+export function getStockSuggestions(weekPlanId) {
+  return request(`${API_BASE_URL}/week-plans/${weekPlanId}/stock-suggestions`, undefined,
+    'Could not load suggestions.');
+}

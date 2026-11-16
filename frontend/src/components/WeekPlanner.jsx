@@ -5,6 +5,7 @@ import {
 } from '../api';
 import MealPickerModal from './MealPickerModal';
 import MealPairings from './MealPairings';
+import StockSuggestions from './StockSuggestions';
 import './WeekPlanner.css';
 
 function ServingsInput({ meal, servings, onCommit, disabled }) {
@@ -342,6 +343,10 @@ function WeekPlanner() {
           onMealCreated={loadMeals}
         />
       )}
+
+      <StockSuggestions key={`stock-${weekPlan.id}`} week={weekPlan} onAdd={async mealId => {
+        setWeekPlan(await addMealToWeek(weekPlan.id, mealId));
+      }} />
 
       <MealPairings key={weekPlan.id} week={weekPlan} selectedSource={pairingSource}
         onSelectSource={setPairingSource} nextWeek={nextWeek} onAddMeal={async (mealId, next) => {
