@@ -32,7 +32,7 @@ export default function MealPairings({ week, selectedSource, onSelectSource, nex
 
   return (
     <section className="meal-pairings" aria-labelledby="pairing-heading">
-      <h3 id="pairing-heading">Use up an ingredient</h3>
+      <h3 id="pairing-heading" tabIndex={-1}>Use up an ingredient</h3>
       <form onSubmit={event => {
         event.preventDefault();
         run(async () => {

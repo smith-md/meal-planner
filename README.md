@@ -4,7 +4,7 @@ A personal web application for weekly meal planning, shared grocery list managem
 
 ## Features
 
-- **Week Planner**: Plan meals for each day of the week with visual day states (Need Meal / No Meal / Neutral)
+- **Week Planner**: Plan meals for a day and a meal slot (breakfast, lunch, or dinner) with visual day states (Need Meal / No Meal / Neutral); meals not yet on a day are listed separately
 - **Meal Library**: Create and search meals with tags, notes, and ingredients; optionally record prep time, cook time, and a make-ahead flag, and filter by them
 - **Shopping**: A server-side shopping list that keeps manual items and purchase state, plus a This week / Next week view that compares what the planned meals need with your stock, warns about low staples and shortfalls, and previews list changes before applying them
 - **Recipe yields and planned servings**: Each recipe can store how many servings it makes, and each planned meal has its own servings; the shopping list and pairings scale to match
@@ -81,11 +81,11 @@ The app will be available at
 ### Yields and planned servings
 
 - A recipe's `yield_servings` (whole number 1-99, optional) is set when creating the meal or with `PATCH /meals/{id}` (body `{"yield_servings": 4}`; `null` clears it). The same endpoint also updates name, notes, tags, ingredients, and the times and make-ahead flag.
-- A planned meal's servings are set with `servings` in the `POST /week-plans/{id}/meals` body (defaults to the recipe yield) and changed with `PATCH /week-plans/{id}/meals/{meal_id}` (body `{"servings": 6}`).
+- A planned meal's servings are set with `servings` in the `POST /week-plans/{id}/meals` body (defaults to the recipe yield) and changed with `PATCH /week-plans/{id}/meals/{meal_id}` (body `{"servings": 6}`; the same endpoint also moves the meal, see "Assigning meals to days and cooking").
 - Ingredient quantities are scaled by `servings / yield` before the shopping list and pairings are calculated. Fractions and compatible units are combined.
 - If a recipe has no yield, quantities are used as written (factor 1) and the UI shows a note. Ingredient lines whose quantity cannot be parsed are not scaled and are listed separately, with a note when the recipe would otherwise be scaled.
 - Each pairing row has `needs_more` and `shortfall`; changing servings recalculates the remaining amount and flags a pairing that now needs more.
-- Set `DATABASE_URL` to override the default SQLite file (`sqlite:///./meal_planner.db`). On startup the backend adds the `meals.yield_servings`, `meals.prep_minutes`, `meals.cook_minutes`, `meals.make_ahead` and `week_meals.servings` columns to existing databases.
+- Set `DATABASE_URL` to override the default SQLite file (`sqlite:///./meal_planner.db`). On startup the backend adds the `meals.yield_servings`, `meals.prep_minutes`, `meals.cook_minutes`, `meals.make_ahead` and `week_meals.servings` columns to existing databases. It also adds `week_meals.slot` and sets the slot to `dinner` for every planned meal that already has a day and no slot, so existing day assignments keep working; meals, servings, status and cooked history are not changed, and running it again changes nothing.
 - Backend tests: from `backend/`, run `pip install -r requirements-dev.txt` then `pytest`.
 
 ### Fridge and pantry inventory
@@ -99,11 +99,14 @@ The app will be available at
 
 ### Assigning meals to days and cooking
 
-- A planned meal can be assigned to a day with `PUT /week-plans/{id}/meals/{meal_id}/day` (body `{"day_id": 12}`; `null` unassigns) and rescheduled by calling it again. Skip or unskip it with `PUT /week-plans/{id}/meals/{meal_id}/status` (body `{"status": "skipped"}` or `"planned"`). Planning, rescheduling, and skipping never change stock.
+- A planned meal has an optional day and meal slot (`breakfast`, `lunch`, or `dinner`); a slot always comes with a day. `POST /week-plans/{id}/meals` accepts an optional `date` (a day of that week, for example `"2026-11-17"`) and `slot` together (`{"meal_id": 3, "date": "2026-11-17", "slot": "lunch"}`); send both or neither (422 otherwise, and 422 for an unknown slot). A date outside the week returns 400. A meal can be planned once per week: posting a placement for a meal already planned that week returns 409 ("This meal is already planned this week. Move it instead."), while posting it without a placement changes nothing. The week's `meal_schedule` entries include `slot` next to `day_id`.
+- To move a meal, use `PATCH /week-plans/{id}/meals/{meal_id}` with `{"date": "2026-11-18", "slot": "dinner"}`; `{"date": null, "slot": null}` takes it off its day. The body may also include `servings`, and it must include at least one of `servings` or `date` and `slot` (422 otherwise). It returns the updated week, or 404 if the meal is not planned in that week.
+- The older `PUT /week-plans/{id}/meals/{meal_id}/day` (body `{"day_id": 12}`; `null` unassigns) still works: assigning a day gives the meal the `dinner` slot when it has none (an existing slot is kept), and unassigning clears the slot. Skip or unskip it with `PUT /week-plans/{id}/meals/{meal_id}/status` (body `{"status": "skipped"}` or `"planned"`). Planning, rescheduling, and skipping never change stock.
 - `GET /inventory/availability` reports, per ingredient, `on_hand` (fridge + pantry), `reserved` (needed by planned meals, not skipped or cooked, in weeks that have not ended), and `available` (on hand minus reserved, never below 0). If reservations exceed stock, `short` shows the gap. Reservations are computed on request, not stored. Half a cabbage stays on hand while a planned meal reserves it.
 - `POST /week-plans/{id}/meals/{meal_id}/cook` marks a meal cooked and deducts its ingredients, scaled to the servings at that moment (frozen as `cooked_servings`). It requires an assigned day (409 otherwise) and a meal that is not skipped (409). Cooking runs once: repeating the request deducts nothing more and returns the stored result with `replayed: true`.
 - Deduction takes from the fridge first, then the pantry. If stock is short, the item is floored at zero (never negative) and the response lists `requested`, `deducted`, and `short` per ingredient; ingredient lines with no parseable quantity are returned as `untracked` and not deducted.
-- A cooked meal's day and servings are fixed, and it cannot be removed from the week (409).
+- A cooked meal's day, slot and servings are fixed, and it cannot be removed from the week (409). Moving it returns 409 ("This meal is already cooked; it cannot be moved.").
+- Plan page: below 1100px it shows a day strip and the selected day's agenda; at 1100px and wider it shows all seven days as a grid. Each day lists its meals under Breakfast, Lunch, and Dinner, each slot has an add button that opens the meal picker for that day and slot, and "+ Add meal to week" adds a meal with no day. Meals with no day appear in "Planned, not on a day yet". Each meal's Move button (or "Choose day for" when it has no day) opens a sheet to pick a day and slot, or "Not on a day yet". It works by keyboard and touch, closes with Escape, and shows an error inside the sheet if the move fails.
 - `PUT /inventory/{id}` with `{"quantity": "1 1/2"}` sets a stock row to an absolute quantity in its display unit as a manual correction (`0` empties it; an invalid quantity returns 400, an unknown id 404). It does not touch reservations or cook history.
 
 ### Shopping list, staples, and reconcile

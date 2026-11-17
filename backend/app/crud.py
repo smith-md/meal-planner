@@ -108,15 +108,32 @@ def update_meal_details(db: Session, meal_id: int, data: schemas.MealDetailsUpda
     return meal
 
 
-def add_meal_to_week(db: Session, week_plan_id: int, meal_id: int, servings: Optional[int] = None):
+def _day_for_date(db: Session, week_plan_id: int, when: date):
+    day = db.query(models.Day).filter_by(week_plan_id=week_plan_id, date=when).first()
+    if not day:
+        raise HTTPException(400, "Choose a day in this week.")
+    return day
+
+
+def add_meal_to_week(db: Session, week_plan_id: int, meal_id: int, servings: Optional[int] = None,
+                     when: Optional[date] = None, slot: Optional[str] = None):
     week_plan = db.query(models.WeekPlan).filter(models.WeekPlan.id == week_plan_id).first()
     meal = db.query(models.Meal).filter(models.Meal.id == meal_id).first()
+    if not (week_plan and meal):
+        return None
 
-    if week_plan and meal and meal not in week_plan.meals:
+    day = _day_for_date(db, week_plan_id, when) if when is not None else None
+    if meal in week_plan.meals:
+        if day is not None:
+            raise HTTPException(409, "This meal is already planned this week. Move it instead.")
+        return week_plan  # unplaced duplicate stays a silent no-op
+    else:
         db.add(models.WeekMeal(
             week_plan_id=week_plan_id,
             meal_id=meal_id,
             servings=servings or meal.yield_servings,
+            day_id=day.id if day else None,
+            slot=slot if day else None,
         ))
         db.commit()
         db.refresh(week_plan)
@@ -150,6 +167,8 @@ def set_week_meal_day(db: Session, week_plan_id: int, meal_id: int, day_id: Opti
         if not day:
             raise HTTPException(400, "Choose a day in this week.")
     row.day_id = day_id
+    # A day always has a slot and a slot always has a day.
+    row.slot = None if day_id is None else (row.slot or "dinner")
     db.commit()
     week_plan = db.query(models.WeekPlan).filter(models.WeekPlan.id == week_plan_id).first()
     db.refresh(week_plan)
@@ -195,6 +214,30 @@ def update_week_meal_servings(db: Session, week_plan_id: int, meal_id: int, serv
         raise HTTPException(409, "This meal is already cooked; its servings are fixed.")
     for row in rows:
         row.servings = servings
+    db.commit()
+    week_plan = db.query(models.WeekPlan).filter(models.WeekPlan.id == week_plan_id).first()
+    db.refresh(week_plan)
+    return week_plan
+
+
+def update_week_meal(db: Session, week_plan_id: int, meal_id: int, data: schemas.WeekMealUpdate):
+    """Partial update: change servings and/or move (or unschedule) a planned meal. Never touches stock."""
+    rows = db.query(models.WeekMeal).filter_by(
+        week_plan_id=week_plan_id, meal_id=meal_id
+    ).all()
+    if not rows:
+        raise HTTPException(404, "Meal is not planned in this week")
+    if any(row.status == "cooked" for row in rows):
+        if data.moves:
+            raise HTTPException(409, "This meal is already cooked; it cannot be moved.")
+        raise HTTPException(409, "This meal is already cooked; its servings are fixed.")
+    day = _day_for_date(db, week_plan_id, data.date) if data.date is not None else None
+    for row in rows:
+        if "servings" in data.model_fields_set:
+            row.servings = data.servings
+        if data.moves:
+            row.day_id = day.id if day else None
+            row.slot = data.slot if day else None
     db.commit()
     week_plan = db.query(models.WeekPlan).filter(models.WeekPlan.id == week_plan_id).first()
     db.refresh(week_plan)

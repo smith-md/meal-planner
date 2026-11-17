@@ -33,16 +33,23 @@ export async function updateDayState(dayId, state) {
   return response.json();
 }
 
-export async function addMealToWeek(weekPlanId, mealId, servings) {
+// servings and placement are optional. placement is { date, slot } (slot: breakfast, lunch or dinner);
+// without it the meal is planned for the week but not placed on a day. Errors carry the server message.
+export function addMealToWeek(weekPlanId, mealId, servings, placement) {
   const body = { meal_id: mealId };
   if (servings !== undefined && servings !== null) body.servings = servings;
-  const response = await fetch(`${API_BASE_URL}/week-plans/${weekPlanId}/meals`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  if (!response.ok) throw new Error('Could not add the meal.');
-  return response.json();
+  if (placement && placement.date && placement.slot) {
+    body.date = placement.date;
+    body.slot = placement.slot;
+  }
+  return request(`${API_BASE_URL}/week-plans/${weekPlanId}/meals`, jsonOptions('POST', body),
+    'Could not add the meal.');
+}
+
+// Moves a planned meal to { date, slot }; { date: null, slot: null } takes it off its day.
+export function moveWeekMeal(weekPlanId, mealId, { date, slot }) {
+  return request(`${API_BASE_URL}/week-plans/${weekPlanId}/meals/${mealId}`,
+    jsonOptions('PATCH', { date: date ?? null, slot: slot ?? null }), 'Could not move the meal.');
 }
 
 async function failureMessage(response, fallback) {

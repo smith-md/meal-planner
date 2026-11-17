@@ -100,19 +100,17 @@ def update_day(day_id: int, day_update: schemas.DayUpdate, db: Session = Depends
 
 @app.post("/week-plans/{week_plan_id}/meals", response_model=schemas.WeekPlan)
 def add_meal_to_week(week_plan_id: int, meal_data: schemas.WeekMealAdd, db: Session = Depends(get_db)):
-    week_plan = crud.add_meal_to_week(db, week_plan_id, meal_data.meal_id, meal_data.servings)
+    week_plan = crud.add_meal_to_week(
+        db, week_plan_id, meal_data.meal_id, meal_data.servings, meal_data.date, meal_data.slot)
     if not week_plan:
         raise HTTPException(status_code=404, detail="Week plan or Meal not found")
     return week_plan
 
 
 @app.patch("/week-plans/{week_plan_id}/meals/{meal_id}", response_model=schemas.WeekPlan)
-def update_week_meal_servings(week_plan_id: int, meal_id: int, data: schemas.WeekMealUpdate,
-                              db: Session = Depends(get_db)):
-    week_plan = crud.update_week_meal_servings(db, week_plan_id, meal_id, data.servings)
-    if not week_plan:
-        raise HTTPException(status_code=404, detail="Meal is not planned in this week")
-    return week_plan
+def update_week_meal(week_plan_id: int, meal_id: int, data: schemas.WeekMealUpdate,
+                     db: Session = Depends(get_db)):
+    return crud.update_week_meal(db, week_plan_id, meal_id, data)
 
 
 @app.delete("/week-plans/{week_plan_id}/meals/{meal_id}", response_model=schemas.WeekPlan)
