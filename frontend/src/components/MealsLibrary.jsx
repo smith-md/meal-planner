@@ -7,6 +7,8 @@ import './MealsLibrary.css';
 
 const IMPORT_URL = 'http://localhost:8000/import-recipe';
 
+const NAME_ERROR = 'Enter a meal name.';
+
 const EMPTY_FORM = {
   name: '', notes: '', tags: '', ingredients: '', yield_servings: '',
   prep_minutes: '', cook_minutes: '', make_ahead: false
@@ -231,7 +233,8 @@ function MealsLibrary() {
   }, [loadMeals]);
 
   const retry = async () => {
-    setLoading(true);
+    // Keep the existing grid visible when reloading a list that already loaded.
+    if (meals.length === 0) setLoading(true);
     await loadMeals();
     setLoading(false);
   };
@@ -259,7 +262,7 @@ function MealsLibrary() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name.trim()) {
-      setFormError('Enter a meal name.');
+      setFormError(NAME_ERROR);
       nameRef.current?.focus();
       return;
     }
@@ -335,6 +338,7 @@ function MealsLibrary() {
     searchRef.current?.focus();
   };
 
+  const nameInvalid = formError === NAME_ERROR;
   const anyFilter = filtersActive(searchTerm, filters) || selectedTags.length > 0;
   const filteredMeals = filterMeals(meals, searchTerm, filters).filter((m) => mealHasTags(m, selectedTags));
   const timeFilterActive = filters.maxPrep !== '' || filters.maxCook !== '';
@@ -402,6 +406,8 @@ function MealsLibrary() {
             value={formData.name}
             onChange={setField('name')}
             required
+            aria-invalid={nameInvalid ? true : undefined}
+            aria-describedby={nameInvalid ? 'meals-form-error' : undefined}
           />
           <Input
             label="Tags"
@@ -444,7 +450,7 @@ function MealsLibrary() {
           <Textarea label="Notes" value={formData.notes} onChange={setField('notes')} />
           <Textarea label="Ingredients" rows={5} value={formData.ingredients} onChange={setField('ingredients')} />
 
-          {formError && <p role="alert" className="meals-error">{formError}</p>}
+          {formError && <p role="alert" id="meals-form-error" className="meals-error">{formError}</p>}
 
           <div className="meals-panel__actions">
             <Button type="submit" variant="primary" loading={creating}>Create meal</Button>
@@ -514,6 +520,13 @@ function MealsLibrary() {
           <p className="meals-hint">Meals with no prep or cook time set are hidden while a time filter is on.</p>
         )}
       </div>
+
+      {!loading && loadError && meals.length > 0 && (
+        <div role="alert" className="meals-error meals-reload-error">
+          <span className="meals-reload-error__text">Could not refresh your meals. {loadError}</span>
+          <Button variant="secondary" onClick={retry}>Retry</Button>
+        </div>
+      )}
 
       {loading ? (
         <Skeleton rows={4} label="Loading meals" />
