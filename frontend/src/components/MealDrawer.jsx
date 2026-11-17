@@ -85,6 +85,7 @@ export default function MealDrawer({ meal = null, initial = null, onSaved, onClo
   const panel = useRef(null);
   const fieldRefs = useRef({});
   const retryRef = useRef(null);
+  const linkRef = useRef(null);
   const keepRef = useRef(null);
   const priorFocus = useRef(null);
   // True while the drawer is programmatically giving focus away (effect cleanup, which StrictMode
@@ -168,9 +169,11 @@ export default function MealDrawer({ meal = null, initial = null, onSaved, onClo
   }, [saveError]);
 
   const setField = (field, value) => {
-    // Retry would resend the older attempted values; once the user edits, Save sends the current form.
+    // After a failed save the form shows the last saved values. Editing brings the attempted values
+    // back and applies the edit on top, so nothing the user typed is lost; Save then sends them all.
+    const attempted = saveError?.attempted;
     setSaveError(null);
-    setForm((f) => ({ ...f, [field]: value }));
+    setForm((f) => ({ ...(attempted || f), [field]: value }));
     // Clear a shown error as soon as the value becomes valid.
     setErrors((e) => (e[field] && !validateField(field, value) ? { ...e, [field]: '' } : e));
   };
@@ -257,6 +260,8 @@ export default function MealDrawer({ meal = null, initial = null, onSaved, onClo
       fieldRefs.current.name?.focus();
     } catch (err) {
       setImportError(err?.message || 'Could not import that recipe. Please try again.');
+      // The button was disabled while loading, which dropped focus; keep it in the drawer by the error.
+      linkRef.current?.focus();
     } finally {
       setImporting(false);
     }
@@ -296,6 +301,7 @@ export default function MealDrawer({ meal = null, initial = null, onSaved, onClo
                     Paste a recipe link (NYT Cooking, AllRecipes, etc.). We fill in the form below so you can review it.
                   </p>
                   <Input
+                    ref={linkRef}
                     label="Recipe link"
                     type="url"
                     placeholder="https://cooking.nytimes.com/recipes/..."
@@ -366,7 +372,7 @@ export default function MealDrawer({ meal = null, initial = null, onSaved, onClo
           {saveError && (
             <div role="alert" className="drawer__error drawer__save-error">
               <span className="drawer__save-error-text">
-                Could not save. {saveError.message} Your last saved values are shown. Retry resends the changes you tried to save; editing a field instead clears this message.
+                Could not save. {saveError.message} Your last saved values are shown. Retry resends the changes you tried to save. If you edit a field instead, the changes you tried to save come back along with your edit.
               </span>
               <Button ref={retryRef} variant="secondary" onClick={retry} loading={saving}>Retry</Button>
             </div>
