@@ -68,12 +68,19 @@ The app will be available at
 
 ### Prep time, cook time, and make-ahead
 
-- Each meal has an optional `prep_minutes` and `cook_minutes` (whole minutes, 0-1440; `null` means not set) and a `make_ahead` flag (default `false`). They can be set on the new-meal form or edited on the meal card, and are saved with `PATCH /meals/{id}/details` (see `backend/README.md`).
+- Each meal has an optional `prep_minutes` and `cook_minutes` (whole minutes, 0-1440; `null` means not set) and a `make_ahead` flag (default `false`). They can be set in the meal drawer (see "Editing meals in the meal drawer" below) and are saved with `PATCH /meals/{id}`; `PATCH /meals/{id}/details` still works for these three fields (see `backend/README.md`).
 - The Meals Library can filter by a maximum prep time, a maximum cook time, and make-ahead only. Filters combine with each other and with the text search; "Clear filters" resets them. Meals with no prep (or cook) time set are hidden while that time filter is active. Filtering happens in the browser.
+
+### Editing meals in the meal drawer
+
+- Meals are created and edited in a right-side meal drawer (a full-height sheet on phones). Open it with the Edit button on a meal card, or with New meal. It replaces the inline new-meal form and the quick editors on the meal card. The drawer edits the name, tags, notes, ingredients, yield, prep and cook time, and make-ahead flag, and saves only the fields you changed.
+- For a new meal the drawer has a "Paste a link" panel: paste a recipe link and choose "Fill from link" to fill the form, then review it and save. Photo import is not available yet.
+- In the meal picker, "Create New Meal" opens the drawer pre-filled with the text typed in the search box.
+- Saving an existing meal uses `PATCH /meals/{id}` with a partial body (see `backend/README.md`).
 
 ### Yields and planned servings
 
-- A recipe's `yield_servings` (whole number 1-99, optional) is set when creating the meal or with `PATCH /meals/{id}` (body `{"yield_servings": 4}`; `null` clears it).
+- A recipe's `yield_servings` (whole number 1-99, optional) is set when creating the meal or with `PATCH /meals/{id}` (body `{"yield_servings": 4}`; `null` clears it). The same endpoint also updates name, notes, tags, ingredients, and the times and make-ahead flag.
 - A planned meal's servings are set with `servings` in the `POST /week-plans/{id}/meals` body (defaults to the recipe yield) and changed with `PATCH /week-plans/{id}/meals/{meal_id}` (body `{"servings": 6}`).
 - Ingredient quantities are scaled by `servings / yield` before the shopping list and pairings are calculated. Fractions and compatible units are combined.
 - If a recipe has no yield, quantities are used as written (factor 1) and the UI shows a note. Ingredient lines whose quantity cannot be parsed are not scaled and are listed separately, with a note when the recipe would otherwise be scaled.

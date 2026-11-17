@@ -131,6 +131,35 @@ class MealYieldUpdate(BaseModel):
     yield_servings: Optional[int] = Field(None, ge=1, le=99)
 
 
+class MealUpdate(BaseModel):
+    """Partial update for PATCH /meals/{id}: only fields present in the body are changed.
+
+    A yield_servings-only body behaves as it did before (null clears the yield).
+    """
+    name: Optional[str] = None
+    notes: Optional[str] = None
+    tags: Optional[str] = None
+    ingredients: Optional[str] = None
+    yield_servings: Optional[int] = Field(None, ge=1, le=99)
+    prep_minutes: Optional[StrictInt] = Field(None, ge=0, le=1440)
+    cook_minutes: Optional[StrictInt] = Field(None, ge=0, le=1440)
+    make_ahead: Optional[StrictBool] = None
+
+    @field_validator("name")
+    @classmethod
+    def name_not_blank(cls, value):
+        if value is None or not value.strip():
+            raise ValueError("name cannot be blank")
+        return value.strip()
+
+    @field_validator("make_ahead")
+    @classmethod
+    def make_ahead_not_null(cls, value):
+        if value is None:
+            raise ValueError("make_ahead cannot be null")
+        return value
+
+
 class MealDetailsUpdate(BaseModel):
     """Partial update: only fields present in the body are changed."""
     prep_minutes: Optional[StrictInt] = Field(None, ge=0, le=1440)

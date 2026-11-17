@@ -70,8 +70,8 @@ def create_meal(meal: schemas.MealCreate, db: Session = Depends(get_db)):
 
 
 @app.patch("/meals/{meal_id}", response_model=schemas.Meal)
-def update_meal_yield(meal_id: int, data: schemas.MealYieldUpdate, db: Session = Depends(get_db)):
-    meal = crud.update_meal_yield(db, meal_id, data.yield_servings)
+def update_meal(meal_id: int, data: schemas.MealUpdate, db: Session = Depends(get_db)):
+    meal = crud.update_meal(db, meal_id, data)
     if not meal:
         raise HTTPException(status_code=404, detail="Meal not found")
     return meal

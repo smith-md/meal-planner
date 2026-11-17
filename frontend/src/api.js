@@ -263,3 +263,25 @@ export function getStockSuggestions(weekPlanId) {
   return request(`${API_BASE_URL}/week-plans/${weekPlanId}/stock-suggestions`, undefined,
     'Could not load suggestions.');
 }
+
+// Partial update: send only the fields that changed (name, notes, tags, ingredients,
+// yield_servings, prep_minutes, cook_minutes, make_ahead).
+export async function updateMeal(mealId, changes) {
+  const response = await fetch(`${API_BASE_URL}/meals/${mealId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(changes)
+  });
+  if (!response.ok) throw new Error(await failureMessage(response, 'Could not save the meal.'));
+  return response.json();
+}
+
+export async function importRecipe(url) {
+  const response = await fetch(`${API_BASE_URL}/import-recipe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url })
+  });
+  if (!response.ok) throw new Error('Could not import that recipe. Check the link and try again.');
+  return response.json();
+}

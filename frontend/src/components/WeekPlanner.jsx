@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   getCurrentWeekPlan, updateDayState, addMealToWeek, removeMealFromWeek, fetchMeals,
   updateWeekMealServings, setWeekMealDay, setWeekMealStatus, cookWeekMeal
 } from '../api';
 import MealPickerModal from './MealPickerModal';
+import MealDrawer from './MealDrawer';
 import MealPairings from './MealPairings';
 import StockSuggestions from './StockSuggestions';
 import './WeekPlanner.css';
@@ -55,6 +56,8 @@ function ServingsInput({ meal, servings, onCommit, disabled }) {
 function WeekPlanner() {
   const [weekPlan, setWeekPlan] = useState(null);
   const [showMealPicker, setShowMealPicker] = useState(false);
+  const [newMealDraft, setNewMealDraft] = useState(null);
+  const addMealButtonRef = useRef(null);
   const [meals, setMeals] = useState([]);
   const [nextWeek, setNextWeek] = useState(false);
   const [error, setError] = useState('');
@@ -246,6 +249,7 @@ function WeekPlanner() {
         <div className="meals-header">
           <h3>Meals for {nextWeek ? 'Next' : 'This'} Week</h3>
           <button
+            ref={addMealButtonRef}
             className="add-meal-btn"
             onClick={() => setShowMealPicker(true)}
           >
@@ -340,7 +344,20 @@ function WeekPlanner() {
           meals={meals}
           onSelect={handleMealSelect}
           onClose={() => setShowMealPicker(false)}
-          onMealCreated={loadMeals}
+          onCreateNew={(name) => {
+            setShowMealPicker(false);
+            setNewMealDraft({ name });
+          }}
+        />
+      )}
+
+      {newMealDraft && (
+        <MealDrawer
+          meal={null}
+          initial={{ name: newMealDraft.name }}
+          onSaved={loadMeals}
+          onClose={() => setNewMealDraft(null)}
+          returnFocusRef={addMealButtonRef}
         />
       )}
 
