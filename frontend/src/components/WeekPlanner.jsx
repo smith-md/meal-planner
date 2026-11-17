@@ -297,11 +297,16 @@ function DayStrip({ days, selectedId, today, countFor, onSelect }) {
 }
 
 // onMove({ date, slot }) rejects on failure; the sheet then shows the message and keeps its values.
-function MoveSheet({ entry, days, defaultDayId: fallbackDayId, onMove, onClose }) {
+function MoveSheet({ entry, days, slots, defaultDayId: fallbackDayId, onMove, onClose }) {
   const { meal, schedule } = entry;
   const placedBefore = schedule.day_id != null && SLOTS.some(slot => slot.id === schedule.slot);
+  // Offer only visible slots so a meal is not moved into a hidden one; if all are hidden, offer all.
+  const options = slots.length > 0 ? slots : SLOTS;
   const [dayValue, setDayValue] = useState(String(placedBefore ? schedule.day_id : fallbackDayId));
-  const [slot, setSlot] = useState(placedBefore ? schedule.slot : 'dinner');
+  const [slot, setSlot] = useState(() => {
+    if (placedBefore && options.some(option => option.id === schedule.slot)) return schedule.slot;
+    return options.some(option => option.id === 'dinner') ? 'dinner' : options[0].id;
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const dayRef = useRef(null);
@@ -338,7 +343,7 @@ function MoveSheet({ entry, days, defaultDayId: fallbackDayId, onMove, onClose }
       </div>
       <fieldset className="move__slots" disabled={unplace}>
         <legend>Meal</legend>
-        {SLOTS.map(option => (
+        {options.map(option => (
           <label key={option.id} className={slot === option.id ? 'is-on' : ''}>
             <input type="radio" name="move-slot" value={option.id} checked={slot === option.id}
               onChange={() => setSlot(option.id)} />
@@ -728,6 +733,7 @@ function WeekPlanner() {
         <MoveSheet
           entry={movingEntry}
           days={weekPlan.days}
+          slots={visibleSlots}
           defaultDayId={selectedDayId ?? weekPlan.days[0]?.id}
           onMove={placement => handleMove(movingEntry.meal, placement)}
           onClose={() => setMoving(null)}
