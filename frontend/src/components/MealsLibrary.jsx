@@ -1,7 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { fetchMeals, createMeal, updateMealYield, updateMealDetails } from '../api';
 import { EMPTY_FILTERS, filterMeals, filtersActive } from '../mealFilters';
+import { Button, Input, Textarea, EmptyState, ErrorState, Skeleton } from './ui';
+import { PlusIcon } from './ui/icons.jsx';
 import './MealsLibrary.css';
+
+const IMPORT_URL = 'http://localhost:8000/import-recipe';
+
+const NAME_ERROR = 'Enter a meal name.';
 
 const EMPTY_FORM = {
   name: '', notes: '', tags: '', ingredients: '', yield_servings: '',
@@ -9,6 +15,28 @@ const EMPTY_FORM = {
 };
 
 const minutesOrNull = (value) => (value === '' ? null : Number(value));
+
+// Tags are stored as one comma-separated string. Split, trim, drop blanks.
+function splitTags(tags) {
+  if (!tags) return [];
+  return tags.split(',').map((t) => t.trim()).filter(Boolean);
+}
+
+// Ingredients are stored as free text, one per line (or comma separated).
+function countIngredients(ingredients) {
+  if (!ingredients) return 0;
+  return ingredients.split(/\r?\n|,/).map((s) => s.trim()).filter(Boolean).length;
+}
+
+function mealHasTags(meal, selectedTags) {
+  if (selectedTags.length === 0) return true;
+  const own = splitTags(meal.tags).map((t) => t.toLowerCase());
+  return selectedTags.every((t) => own.includes(t.toLowerCase()));
+}
+
+function errorMessage(err, fallback) {
+  return err && err.message ? err.message : fallback;
+}
 
 function DetailsControl({ meal, onSaved }) {
   const [prep, setPrep] = useState(meal.prep_minutes ?? '');
@@ -33,43 +61,43 @@ function DetailsControl({ meal, onSaved }) {
       await updateMealDetails(meal.id, changes);
       await onSaved();
     } catch (err) {
-      setError(err.message);
+      setError(errorMessage(err, 'Could not save times.'));
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="meal-details">
-      <label>
-        Prep (min){' '}
-        <input
-          type="number" min="0" max="1440" step="1"
+    <div className="meals-details__group">
+      <div className="meals-details__row">
+        <Input
+          label="Prep (min)"
+          type="number" inputMode="numeric" min="0" max="1440" step="1"
           value={prep}
           onChange={(e) => setPrep(e.target.value)}
           aria-label={`Prep minutes for ${meal.name}`}
         />
-      </label>
-      <label>
-        Cook (min){' '}
-        <input
-          type="number" min="0" max="1440" step="1"
+        <Input
+          label="Cook (min)"
+          type="number" inputMode="numeric" min="0" max="1440" step="1"
           value={cook}
           onChange={(e) => setCook(e.target.value)}
           aria-label={`Cook minutes for ${meal.name}`}
         />
-      </label>
-      <label>
+      </div>
+      <label className="meals-check">
         <input
           type="checkbox"
           checked={makeAhead}
           onChange={(e) => setMakeAhead(e.target.checked)}
           aria-label={`Make-ahead ${meal.name}`}
-        />{' '}
-        Make-ahead
+        />
+        <span>Make-ahead</span>
       </label>
-      <button type="button" onClick={save} disabled={saving || unchanged}>Save times</button>
-      {error && <p role="alert" className="yield-error">{error}</p>}
+      <Button variant="secondary" onClick={save} disabled={saving || unchanged} loading={saving}>
+        Save times
+      </Button>
+      {error && <p role="alert" className="meals-error">{error}</p>}
     </div>
   );
 }
@@ -87,409 +115,448 @@ function YieldControl({ meal, onSaved }) {
       await updateMealYield(meal.id, value === '' ? null : Number(value));
       await onSaved();
     } catch (err) {
-      setError(err.message);
+      setError(errorMessage(err, 'Could not save servings.'));
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="meal-yield">
-      <label>
-        Serves{' '}
-        <input
-          type="number"
-          min="1"
-          max="99"
-          step="1"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          aria-label={`Servings ${meal.name} makes`}
-        />
-      </label>
-      <button type="button" onClick={save} disabled={saving || unchanged}>Save</button>
-      {meal.yield_servings == null && (
-        <p className="yield-note">Yield not set. Quantities are used as written.</p>
-      )}
-      {error && <p role="alert" className="yield-error">{error}</p>}
+    <div className="meals-details__group">
+      <Input
+        label="Serves"
+        type="number" inputMode="numeric" min="1" max="99" step="1"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        aria-label={`Servings ${meal.name} makes`}
+        hint={meal.yield_servings == null ? 'Yield not set. Quantities are used as written.' : undefined}
+      />
+      <Button variant="secondary" onClick={save} disabled={saving || unchanged} loading={saving}>
+        Save servings
+      </Button>
+      {error && <p role="alert" className="meals-error">{error}</p>}
     </div>
+  );
+}
+
+function MealCard({ meal, onSaved }) {
+  const [open, setOpen] = useState(false);
+  const tags = splitTags(meal.tags);
+  const count = countIngredients(meal.ingredients);
+  const panelId = `meals-details-${meal.id}`;
+  const hasTimes = meal.prep_minutes != null || meal.cook_minutes != null || meal.make_ahead;
+
+  return (
+    <li className="meals-card">
+      <h3 className="meals-card__name">{meal.name}</h3>
+      {tags.length > 0 && (
+        <ul className="meals-card__tags" aria-label="Tags">
+          {tags.map((t) => (
+            <li key={t} className="meals-tag">{t}</li>
+          ))}
+        </ul>
+      )}
+      <p className="meals-card__meta">
+        {count} ingredient{count === 1 ? '' : 's'}
+        {hasTimes && (
+          <>
+            {meal.prep_minutes != null && <span> · Prep {meal.prep_minutes} min</span>}
+            {meal.cook_minutes != null && <span> · Cook {meal.cook_minutes} min</span>}
+            {meal.make_ahead && <span> · Make-ahead</span>}
+          </>
+        )}
+      </p>
+      <button
+        type="button"
+        className="meals-card__toggle"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen(!open)}
+      >
+        <span>Details</span>
+        <span className="meals-card__chevron" aria-hidden="true">{open ? '−' : '+'}</span>
+      </button>
+      {open && (
+        <div className="meals-details" id={panelId}>
+          {meal.notes && <p className="meals-details__notes">{meal.notes}</p>}
+          <YieldControl key={`${meal.id}-${meal.yield_servings ?? ''}`} meal={meal} onSaved={onSaved} />
+          <DetailsControl
+            key={`${meal.id}-${meal.prep_minutes ?? ''}-${meal.cook_minutes ?? ''}-${meal.make_ahead}`}
+            meal={meal}
+            onSaved={onSaved}
+          />
+        </div>
+      )}
+    </li>
   );
 }
 
 function MealsLibrary() {
   const [meals, setMeals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [showNewMealForm, setShowNewMealForm] = useState(false);
-  const [showImportForm, setShowImportForm] = useState(false);
-  const [showImageImportForm, setShowImageImportForm] = useState(false);
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [showForm, setShowForm] = useState(false);
+  const [showLink, setShowLink] = useState(false);
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [formError, setFormError] = useState('');
+  const [creating, setCreating] = useState(false);
   const [importUrl, setImportUrl] = useState('');
   const [importing, setImporting] = useState(false);
-  const [imageFile, setImageFile] = useState(null);
-  const [editingMeal, setEditingMeal] = useState(null);
-  const [formData, setFormData] = useState(EMPTY_FORM);
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [importError, setImportError] = useState('');
+  const nameRef = useRef(null);
+  const searchRef = useRef(null);
 
-  useEffect(() => {
-    loadMeals();
+  const loadMeals = useCallback(async () => {
+    try {
+      const data = await fetchMeals();
+      if (!Array.isArray(data)) {
+        throw new Error((data && data.detail) || 'Unexpected response.');
+      }
+      setMeals(data);
+      setLoadError('');
+    } catch (err) {
+      console.error('Error loading meals:', err);
+      setLoadError(errorMessage(err, 'Could not load meals.'));
+    }
   }, []);
 
-  const loadMeals = async () => {
-    try {
-      const mealsData = await fetchMeals();
-      setMeals(mealsData);
-    } catch (error) {
-      console.error('Error loading meals:', error);
-    }
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      await loadMeals();
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [loadMeals]);
+
+  const retry = async () => {
+    // Keep the existing grid visible when reloading a list that already loaded.
+    if (meals.length === 0) setLoading(true);
+    await loadMeals();
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (showForm) nameRef.current?.focus();
+  }, [showForm]);
+
+  const allTags = useMemo(() => {
+    const seen = new Map();
+    meals.forEach((m) => splitTags(m.tags).forEach((t) => {
+      const key = t.toLowerCase();
+      if (!seen.has(key)) seen.set(key, t);
+    }));
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  }, [meals]);
+
+  const setField = (field) => (e) => setFormData({ ...formData, [field]: e.target.value });
+
+  const toggleForm = () => {
+    setShowForm(!showForm);
+    setFormError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (formData.name.trim()) {
-      await createMeal({
+    if (!formData.name.trim()) {
+      setFormError(NAME_ERROR);
+      nameRef.current?.focus();
+      return;
+    }
+    setCreating(true);
+    setFormError('');
+    try {
+      const created = await createMeal({
         ...formData,
         yield_servings: formData.yield_servings === '' ? null : Number(formData.yield_servings),
         prep_minutes: minutesOrNull(formData.prep_minutes),
         cook_minutes: minutesOrNull(formData.cook_minutes)
       });
+      // api.createMeal returns the parsed body even for HTTP errors, so check it.
+      if (!created || created.id == null) {
+        throw new Error((created && typeof created.detail === 'string' && created.detail) || 'The meal was not saved.');
+      }
       setFormData(EMPTY_FORM);
-      setShowNewMealForm(false);
+      setShowForm(false);
+      setShowLink(false);
       await loadMeals();
+    } catch (err) {
+      setFormError(`Could not create the meal. ${errorMessage(err, 'Please try again.')}`);
+    } finally {
+      setCreating(false);
     }
   };
 
   const handleImportRecipe = async (e) => {
     e.preventDefault();
     if (!importUrl.trim()) return;
-
     setImporting(true);
+    setImportError('');
     try {
-      const response = await fetch('http://localhost:8000/import-recipe', {
+      const response = await fetch(IMPORT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: importUrl })
       });
-
-      if (response.ok) {
-        const recipeData = await response.json();
-        setFormData({
-          ...EMPTY_FORM,
-          name: recipeData.name || '',
-          notes: recipeData.notes || '',
-          tags: recipeData.tags || '',
-          ingredients: recipeData.ingredients || '',
-          yield_servings: recipeData.yield_servings ?? ''
-        });
-        setImportUrl('');
-        setShowImportForm(false);
-        setShowNewMealForm(true);
-      } else {
-        alert('Failed to import recipe. Please check the URL and try again.');
+      if (!response.ok) {
+        setImportError('Could not import that recipe. Check the link and try again.');
+        return;
       }
-    } catch (error) {
-      console.error('Error importing recipe:', error);
-      alert('Failed to import recipe. Please try again.');
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  const handleImageImport = async (e) => {
-    e.preventDefault();
-    if (!imageFile) return;
-
-    setImporting(true);
-    try {
-      const formDataUpload = new FormData();
-      formDataUpload.append('image', imageFile);
-
-      const response = await fetch('http://localhost:8000/import-recipe-from-image', {
-        method: 'POST',
-        body: formDataUpload
+      const recipeData = await response.json();
+      setFormData({
+        ...EMPTY_FORM,
+        name: recipeData.name || '',
+        notes: recipeData.notes || '',
+        tags: recipeData.tags || '',
+        ingredients: recipeData.ingredients || '',
+        yield_servings: recipeData.yield_servings ?? ''
       });
-
-      if (response.ok) {
-        const recipeData = await response.json();
-        setFormData({
-          ...EMPTY_FORM,
-          name: recipeData.name || '',
-          notes: recipeData.notes || '',
-          tags: recipeData.tags || '',
-          ingredients: recipeData.ingredients || '',
-          yield_servings: recipeData.yield_servings ?? ''
-        });
-        setImageFile(null);
-        setShowImageImportForm(false);
-        setShowNewMealForm(true);
-      } else {
-        const error = await response.json();
-        alert(error.detail || 'Failed to import recipe from image. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error importing recipe from image:', error);
-      alert('Failed to import recipe from image. Please try again.');
+      setFormError('');
+      setImportUrl('');
+      setShowLink(false);
+    } catch (err) {
+      console.error('Error importing recipe:', err);
+      setImportError('Could not import that recipe. Please try again.');
     } finally {
       setImporting(false);
     }
   };
 
-  const filteredMeals = filterMeals(meals, searchTerm, filters);
-  const timeFilterActive = filters.maxPrep !== '' || filters.maxCook !== '';
+  const toggleTag = (tag) => {
+    setSelectedTags(
+      selectedTags.includes(tag) ? selectedTags.filter((t) => t !== tag) : [...selectedTags, tag]
+    );
+  };
 
   const clearFilters = () => {
     setSearchTerm('');
+    setSelectedTags([]);
     setFilters(EMPTY_FILTERS);
+    searchRef.current?.focus();
   };
 
+  const nameInvalid = formError === NAME_ERROR;
+  const anyFilter = filtersActive(searchTerm, filters) || selectedTags.length > 0;
+  const filteredMeals = filterMeals(meals, searchTerm, filters).filter((m) => mealHasTags(m, selectedTags));
+  const timeFilterActive = filters.maxPrep !== '' || filters.maxCook !== '';
+
   return (
-    <div className="meals-library">
-      <div className="library-header">
-        <h2>Meals Library</h2>
-        <div className="header-buttons">
-          <button
-            className="import-btn"
-            onClick={() => {
-              setShowImportForm(!showImportForm);
-              setShowNewMealForm(false);
-              setShowImageImportForm(false);
-            }}
-          >
-            {showImportForm ? 'Cancel' : 'Import from URL'}
-          </button>
-          <button
-            className="image-import-btn"
-            onClick={() => {
-              setShowImageImportForm(!showImageImportForm);
-              setShowNewMealForm(false);
-              setShowImportForm(false);
-            }}
-          >
-            {showImageImportForm ? 'Cancel' : 'Import from Image'}
-          </button>
-          <button
-            className="new-meal-btn"
-            onClick={() => {
-              setShowNewMealForm(!showNewMealForm);
-              setShowImportForm(false);
-              setShowImageImportForm(false);
-            }}
-          >
-            {showNewMealForm ? 'Cancel' : '+ New Meal'}
-          </button>
-        </div>
-      </div>
+    <section className="meals" aria-labelledby="meals-title">
+      <header className="meals-header">
+        <h2 id="meals-title" className="meals-header__title">Meals</h2>
+        <Button
+          variant="primary"
+          onClick={toggleForm}
+          aria-expanded={showForm}
+          aria-controls="meals-new-panel"
+        >
+          <PlusIcon />
+          New meal
+        </Button>
+      </header>
 
-      {showImportForm && (
-        <form className="import-form" onSubmit={handleImportRecipe}>
-          <h3>Import from Recipe URL</h3>
-          <p className="import-instructions">
-            Paste a recipe URL (NYT Cooking, AllRecipes, etc.):
-          </p>
-          <input
-            type="url"
-            placeholder="https://cooking.nytimes.com/recipes/..."
-            value={importUrl}
-            onChange={(e) => setImportUrl(e.target.value)}
-            required
-          />
-          <button type="submit" className="submit-btn" disabled={importing}>
-            {importing ? 'Importing...' : 'Import Recipe'}
-          </button>
-        </form>
-      )}
-
-      {showImageImportForm && (
-        <form className="import-form image-form" onSubmit={handleImageImport}>
-          <h3>Import from Image</h3>
-          <p className="import-instructions">
-            Upload a screenshot or photo of a recipe:
-          </p>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => setImageFile(e.target.files[0])}
-            required
-            className="file-input"
-          />
-          {imageFile && (
-            <div className="file-preview">
-              <span>Selected: {imageFile.name}</span>
-            </div>
-          )}
-          <button type="submit" className="submit-btn" disabled={importing || !imageFile}>
-            {importing ? 'Analyzing Image...' : 'Import from Image'}
-          </button>
-        </form>
-      )}
-
-      {showNewMealForm && (
-        <form className="meal-form" onSubmit={handleSubmit}>
-          <h3>Create New Meal</h3>
-          <input
-            type="text"
-            placeholder="Meal name*"
-            value={formData.name}
-            onChange={(e) => setFormData({...formData, name: e.target.value})}
-            required
-          />
-          <input
-            type="text"
-            placeholder="Tags (e.g., vegetarian, quick, chicken)"
-            value={formData.tags}
-            onChange={(e) => setFormData({...formData, tags: e.target.value})}
-          />
-          <label className="yield-field">
-            Servings this recipe makes
-            <input
-              type="number"
-              min="1"
-              max="99"
-              step="1"
-              placeholder="e.g., 4"
-              value={formData.yield_servings}
-              onChange={(e) => setFormData({...formData, yield_servings: e.target.value})}
-            />
-          </label>
-          <div className="time-fields">
-            <label className="yield-field">
-              Prep time (minutes)
-              <input
-                type="number" min="0" max="1440" step="1"
-                placeholder="optional"
-                value={formData.prep_minutes}
-                onChange={(e) => setFormData({...formData, prep_minutes: e.target.value})}
-              />
-            </label>
-            <label className="yield-field">
-              Cook time (minutes)
-              <input
-                type="number" min="0" max="1440" step="1"
-                placeholder="optional"
-                value={formData.cook_minutes}
-                onChange={(e) => setFormData({...formData, cook_minutes: e.target.value})}
-              />
-            </label>
-            <label className="make-ahead-field">
-              <input
-                type="checkbox"
-                checked={formData.make_ahead}
-                onChange={(e) => setFormData({...formData, make_ahead: e.target.checked})}
-              />{' '}
-              Can be made ahead
-            </label>
+      {showForm && (
+        <form className="meals-panel" id="meals-new-panel" onSubmit={handleSubmit} aria-label="New meal">
+          <div className="meals-panel__section">
+            <button
+              type="button"
+              className="meals-panel__toggle"
+              aria-expanded={showLink}
+              aria-controls="meals-link-panel"
+              onClick={() => setShowLink(!showLink)}
+            >
+              <span>Paste a link</span>
+              <span className="meals-card__chevron" aria-hidden="true">{showLink ? '−' : '+'}</span>
+            </button>
+            {showLink && (
+              <div className="meals-link" id="meals-link-panel">
+                <p className="meals-hint">
+                  Paste a recipe link (NYT Cooking, AllRecipes, etc.). We fill in the form below so you can review it.
+                </p>
+                <Input
+                  label="Recipe link"
+                  type="url"
+                  placeholder="https://cooking.nytimes.com/recipes/..."
+                  value={importUrl}
+                  onChange={(e) => setImportUrl(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleImportRecipe(e); }}
+                />
+                <div>
+                  <Button
+                    variant="secondary"
+                    onClick={handleImportRecipe}
+                    loading={importing}
+                    disabled={!importUrl.trim()}
+                  >
+                    Fill from link
+                  </Button>
+                </div>
+                {importError && <p role="alert" className="meals-error">{importError}</p>}
+              </div>
+            )}
           </div>
-          <textarea
-            placeholder="Notes"
-            value={formData.notes}
-            onChange={(e) => setFormData({...formData, notes: e.target.value})}
+
+          <Input
+            ref={nameRef}
+            label="Name"
+            type="text"
+            value={formData.name}
+            onChange={setField('name')}
+            required
+            aria-invalid={nameInvalid ? true : undefined}
+            aria-describedby={nameInvalid ? 'meals-form-error' : undefined}
           />
-          <textarea
-            placeholder="Ingredients"
-            value={formData.ingredients}
-            onChange={(e) => setFormData({...formData, ingredients: e.target.value})}
+          <Input
+            label="Tags"
+            type="text"
+            hint="Separate with commas, e.g. vegetarian, quick, chicken"
+            value={formData.tags}
+            onChange={setField('tags')}
           />
-          <button type="submit" className="submit-btn">Create Meal</button>
+          <div className="meals-panel__row">
+            <Input
+              label="Servings this recipe makes"
+              type="number" inputMode="numeric" min="1" max="99" step="1"
+              placeholder="e.g. 4"
+              value={formData.yield_servings}
+              onChange={setField('yield_servings')}
+            />
+            <Input
+              label="Prep time (min)"
+              type="number" inputMode="numeric" min="0" max="1440" step="1"
+              placeholder="optional"
+              value={formData.prep_minutes}
+              onChange={setField('prep_minutes')}
+            />
+            <Input
+              label="Cook time (min)"
+              type="number" inputMode="numeric" min="0" max="1440" step="1"
+              placeholder="optional"
+              value={formData.cook_minutes}
+              onChange={setField('cook_minutes')}
+            />
+          </div>
+          <label className="meals-check">
+            <input
+              type="checkbox"
+              checked={formData.make_ahead}
+              onChange={(e) => setFormData({ ...formData, make_ahead: e.target.checked })}
+            />
+            <span>Can be made ahead</span>
+          </label>
+          <Textarea label="Notes" value={formData.notes} onChange={setField('notes')} />
+          <Textarea label="Ingredients" rows={5} value={formData.ingredients} onChange={setField('ingredients')} />
+
+          {formError && <p role="alert" id="meals-form-error" className="meals-error">{formError}</p>}
+
+          <div className="meals-panel__actions">
+            <Button type="submit" variant="primary" loading={creating}>Create meal</Button>
+            <Button variant="quiet" onClick={toggleForm}>Cancel</Button>
+          </div>
         </form>
       )}
 
-      <div className="search-section">
-        <input
-          type="text"
-          className="search-input"
-          placeholder="Search meals by name, tags, ingredients..."
+      <div className="meals-search">
+        <Input
+          ref={searchRef}
+          label="Search meals"
+          type="search"
+          placeholder="Name, notes, tags or ingredients"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
-        <span className="results-count">{filteredMeals.length} meal{filteredMeals.length !== 1 ? 's' : ''}</span>
       </div>
 
-      <div className="filter-section">
-        <label>
-          Max prep (min){' '}
-          <input
-            type="number" min="0" max="1440" step="1"
+      <div className="meals-toolbar">
+        {allTags.length > 0 && (
+          <ul className="meals-chips" aria-label="Filter by tag">
+            {allTags.map((tag) => {
+              const pressed = selectedTags.includes(tag);
+              return (
+                <li key={tag}>
+                  <button
+                    type="button"
+                    className={`meals-chip${pressed ? ' meals-chip--on' : ''}`}
+                    aria-pressed={pressed}
+                    onClick={() => toggleTag(tag)}
+                  >
+                    {tag}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <div className="meals-filters">
+          <Input
+            label="Max prep (min)"
+            type="number" inputMode="numeric" min="0" max="1440" step="1"
             value={filters.maxPrep}
-            onChange={(e) => setFilters({...filters, maxPrep: e.target.value})}
+            onChange={(e) => setFilters({ ...filters, maxPrep: e.target.value })}
             aria-label="Maximum prep minutes"
           />
-        </label>
-        <label>
-          Max cook (min){' '}
-          <input
-            type="number" min="0" max="1440" step="1"
+          <Input
+            label="Max cook (min)"
+            type="number" inputMode="numeric" min="0" max="1440" step="1"
             value={filters.maxCook}
-            onChange={(e) => setFilters({...filters, maxCook: e.target.value})}
+            onChange={(e) => setFilters({ ...filters, maxCook: e.target.value })}
             aria-label="Maximum cook minutes"
           />
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={filters.makeAheadOnly}
-            onChange={(e) => setFilters({...filters, makeAheadOnly: e.target.checked})}
-          />{' '}
-          Make-ahead only
-        </label>
-        <button
-          type="button"
-          className="clear-filters-btn"
-          onClick={clearFilters}
-          disabled={!filtersActive(searchTerm, filters)}
-        >
-          Clear filters
-        </button>
+          <label className="meals-check">
+            <input
+              type="checkbox"
+              checked={filters.makeAheadOnly}
+              onChange={(e) => setFilters({ ...filters, makeAheadOnly: e.target.checked })}
+            />
+            <span>Make-ahead only</span>
+          </label>
+          <Button variant="quiet" onClick={clearFilters} disabled={!anyFilter}>Clear filters</Button>
+        </div>
         {timeFilterActive && (
-          <p className="filter-note">Meals with no prep or cook time set are hidden while a time filter is on.</p>
+          <p className="meals-hint">Meals with no prep or cook time set are hidden while a time filter is on.</p>
         )}
       </div>
 
-      <div className="meals-grid">
-        {filteredMeals.map(meal => (
-          <div key={meal.id} className="meal-card">
-            <div className="meal-card-header">
-              <h3>{meal.name}</h3>
-            </div>
-            {(meal.prep_minutes != null || meal.cook_minutes != null || meal.make_ahead) && (
-              <div className="meal-times">
-                {meal.prep_minutes != null && <span>Prep {meal.prep_minutes} min</span>}
-                {meal.cook_minutes != null && <span>Cook {meal.cook_minutes} min</span>}
-                {meal.make_ahead && <span className="make-ahead-badge">Make-ahead</span>}
-              </div>
-            )}
-            <YieldControl key={`${meal.id}-${meal.yield_servings ?? ''}`} meal={meal} onSaved={loadMeals} />
-            <DetailsControl
-              key={`${meal.id}-${meal.prep_minutes ?? ''}-${meal.cook_minutes ?? ''}-${meal.make_ahead}`}
-              meal={meal}
-              onSaved={loadMeals}
-            />
-            {meal.tags && (
-              <div className="meal-tags">
-                <strong>Tags:</strong> {meal.tags}
-              </div>
-            )}
-            {meal.notes && (
-              <div className="meal-notes">
-                <strong>Notes:</strong> {meal.notes}
-              </div>
-            )}
-            {meal.ingredients && (
-              <div className="meal-ingredients">
-                <strong>Ingredients:</strong> {meal.ingredients}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {filteredMeals.length === 0 && (
-        <div className="no-meals">
-          <p>
-            {meals.length > 0 && filtersActive(searchTerm, filters)
-              ? 'No meals match the current search and filters.'
-              : 'No meals found. Create your first meal to get started!'}
-          </p>
+      {!loading && loadError && meals.length > 0 && (
+        <div role="alert" className="meals-error meals-reload-error">
+          <span className="meals-reload-error__text">Could not refresh your meals. {loadError}</span>
+          <Button variant="secondary" onClick={retry}>Retry</Button>
         </div>
       )}
-    </div>
+
+      {loading ? (
+        <Skeleton rows={4} label="Loading meals" />
+      ) : loadError && meals.length === 0 ? (
+        <ErrorState message={`Could not load your meals. ${loadError}`} onRetry={retry} />
+      ) : meals.length === 0 ? (
+        <EmptyState
+          message="No meals yet. Add your first meal to start planning."
+          actionLabel="New meal"
+          onAction={() => setShowForm(true)}
+        />
+      ) : filteredMeals.length === 0 ? (
+        <EmptyState
+          message="No meals match your search and filters."
+          actionLabel="Clear filters"
+          onAction={clearFilters}
+        />
+      ) : (
+        <>
+          <p className="meals-count" aria-live="polite">
+            {filteredMeals.length} meal{filteredMeals.length === 1 ? '' : 's'}
+          </p>
+          <ul className="meals-grid">
+            {filteredMeals.map((meal) => (
+              <MealCard key={meal.id} meal={meal} onSaved={loadMeals} />
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
   );
 }
 

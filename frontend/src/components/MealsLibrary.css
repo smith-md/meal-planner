@@ -1,417 +1,337 @@
-/* Mobile-first styles */
-.meals-library {
-  background: white;
-  border-radius: 12px;
-  padding: 1rem;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
-}
+/* Meals library. All classes are prefixed meals- so nothing here collides with other pages. */
 
-.library-header {
+.meals {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  gap: var(--space-4);
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--space-4);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  font-family: var(--font-body);
+  color: var(--ink);
+  overflow-wrap: anywhere;
 }
 
-.library-header h2 {
-  color: #333;
+/* Keep a focused control out from under the pinned search row when tabbing. */
+.meals input,
+.meals textarea,
+.meals button {
+  scroll-margin-top: 112px;
+}
+
+.meals-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.meals-header__title {
   margin: 0;
-  font-size: 1.5rem;
+  font-family: var(--font-heading);
+  font-size: 24px;
+  color: var(--ink);
 }
 
-.header-buttons {
+.meals-error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.meals-reload-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.meals-reload-error__text {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.meals-hint {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-muted);
+}
+
+/* Checkbox rows keep a 44px target. */
+.meals-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  font-size: 16px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.meals-check input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  accent-color: var(--green);
+}
+
+.meals-check input[type="checkbox"]:focus-visible,
+.meals-chip:focus-visible,
+.meals-card__toggle:focus-visible,
+.meals-panel__toggle:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+/* New meal panel */
+.meals-panel {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  min-width: 0;
 }
 
-.new-meal-btn,
-.import-btn,
-.image-import-btn {
+.meals-panel__section {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+}
+
+.meals-panel__toggle,
+.meals-card__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
   width: 100%;
   min-height: 44px;
-  padding: 0.75rem 1.25rem;
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 8px;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--green);
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 600;
+  text-align: left;
   cursor: pointer;
-  font-weight: 500;
-  font-size: 0.9375rem;
-  transition: all 0.2s;
-  touch-action: manipulation;
 }
 
-.import-btn {
-  background: #f59e0b;
+.meals-panel__toggle:hover,
+.meals-card__toggle:hover {
+  background: var(--surface-sunk);
 }
 
-.image-import-btn {
-  background: #10b981;
+.meals-card__chevron {
+  font-size: 20px;
+  line-height: 1;
 }
 
-.new-meal-btn:active,
-.import-btn:active,
-.image-import-btn:active {
-  transform: scale(0.98);
-}
-
-.meal-form,
-.import-form {
-  background: #f9f9f9;
-  padding: 1rem;
-  border-radius: 10px;
-  margin-bottom: 1.5rem;
-}
-
-.import-form {
-  background: #fff7ed;
-  border: 2px solid #f59e0b;
-}
-
-.import-form.image-form {
-  background: #ecfdf5;
-  border: 2px solid #10b981;
-}
-
-.import-instructions {
-  color: #666;
-  margin-bottom: 1rem;
-  font-size: 0.9375rem;
-  line-height: 1.5;
-}
-
-.meal-form h3,
-.import-form h3 {
-  color: #333;
-  margin-bottom: 1rem;
-  font-size: 1.125rem;
-}
-
-.meal-form input,
-.meal-form textarea,
-.import-form input {
-  width: 100%;
-  min-height: 44px;
-  padding: 0.75rem;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
-  margin-bottom: 0.75rem;
-  font-size: 1rem;
-  font-family: inherit;
-}
-
-.meal-form input:focus,
-.meal-form textarea:focus,
-.import-form input:focus {
-  outline: none;
-  border-color: #667eea;
-}
-
-.meal-form textarea {
-  min-height: 80px;
-  resize: vertical;
-}
-
-.file-input {
-  cursor: pointer;
-  padding: 0.5rem !important;
-}
-
-.file-preview {
-  background: white;
-  padding: 0.75rem;
-  border-radius: 6px;
-  margin-bottom: 0.75rem;
-  color: #059669;
-  font-size: 0.9375rem;
-  word-break: break-word;
-}
-
-.submit-btn {
-  width: 100%;
-  min-height: 44px;
-  padding: 0.75rem;
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 500;
-  font-size: 1rem;
-  transition: all 0.2s;
-  touch-action: manipulation;
-}
-
-.submit-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.submit-btn:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-.search-section {
+.meals-link {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
+  gap: var(--space-3);
+  padding: 0 var(--space-3) var(--space-3);
 }
 
-.search-input {
-  width: 100%;
+.meals-panel__row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+
+.meals-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Only the search row is pinned. */
+.meals-search {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--space-2) var(--space-1);
+  margin: calc(var(--space-2) * -1) calc(var(--space-1) * -1);
+  background: var(--surface);
+}
+
+/* Tag chips and secondary filters scroll normally. */
+.meals-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.meals-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.meals-chip {
   min-height: 44px;
-  padding: 0.75rem;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
-  font-size: 1rem;
+  min-width: 44px;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  cursor: pointer;
 }
 
-.search-input:focus {
-  outline: none;
-  border-color: #667eea;
+.meals-chip:hover {
+  background: var(--surface-sunk);
 }
 
-.results-count {
-  color: #666;
-  font-size: 0.9375rem;
-  text-align: center;
+.meals-chip--on,
+.meals-chip--on:hover {
+  border-color: var(--green);
+  background: var(--green);
+  color: var(--surface);
 }
 
-/* Meals grid - single column on mobile */
+.meals-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: end;
+  gap: var(--space-3);
+}
+
+.meals-filters .meals-check,
+.meals-filters .ui-button {
+  align-self: center;
+}
+
+.meals-count {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-muted);
+}
+
+/* Grid and cards */
 .meals-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 1rem;
-}
-
-.meal-card {
-  background: linear-gradient(135deg, #f5f7fa 0%, #ffffff 100%);
-  border: 2px solid #e0e0e0;
-  border-radius: 10px;
-  padding: 1rem;
-  transition: all 0.3s;
-}
-
-.meal-card-header {
-  margin-bottom: 0.75rem;
-}
-
-.meal-card-header h3 {
-  color: #333;
-  font-size: 1.125rem;
+  gap: var(--space-3);
   margin: 0;
-  word-break: break-word;
+  padding: 0;
+  list-style: none;
 }
 
-.meal-tags,
-.meal-notes,
-.meal-ingredients {
-  margin-bottom: 0.75rem;
-  color: #555;
-  font-size: 0.9375rem;
-  line-height: 1.5;
-  word-break: break-word;
+.meals-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
 }
 
-.meal-tags strong,
-.meal-notes strong,
-.meal-ingredients strong {
-  color: #667eea;
+.meals-card__name {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 18px;
+  overflow-wrap: anywhere;
 }
 
-.no-meals {
-  text-align: center;
-  padding: 3rem 1rem;
-  color: #999;
+.meals-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.no-meals p {
-  font-size: 1rem;
-  line-height: 1.5;
+.meals-tag {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--tint-sage);
+  color: var(--ink-on-tint);
+  font-size: 13px;
 }
 
-/* Tablet */
-@media (min-width: 768px) {
-  .meals-library {
-    padding: 1.5rem;
+.meals-card__meta {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-muted);
+}
+
+.meals-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
+.meals-details__notes {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.meals-details__group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.meals-details__group > .ui-field {
+  align-self: stretch;
+}
+
+.meals-details__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  align-self: stretch;
+}
+
+@media (min-width: 640px) {
+  .meals-panel__row {
+    grid-template-columns: repeat(3, 1fr);
   }
 
-  .library-header {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .library-header h2 {
-    font-size: 1.75rem;
-  }
-
-  .header-buttons {
-    flex-direction: row;
-    gap: 0.75rem;
-  }
-
-  .new-meal-btn,
-  .import-btn,
-  .image-import-btn {
-    width: auto;
-  }
-
-  .new-meal-btn:hover {
-    background: #5568d3;
-    transform: translateY(-2px);
-  }
-
-  .import-btn:hover {
-    background: #d97706;
-    transform: translateY(-2px);
-  }
-
-  .image-import-btn:hover {
-    background: #059669;
-    transform: translateY(-2px);
-  }
-
-  .meal-form,
-  .import-form {
-    padding: 1.25rem;
-  }
-
-  .search-section {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .results-count {
-    white-space: nowrap;
-    text-align: right;
+  .meals {
+    padding: var(--space-5);
   }
 
   .meals-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .meal-card:hover {
-    border-color: #667eea;
-    transform: translateY(-5px);
-    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
-  }
-
-  .submit-btn:hover:not(:disabled) {
-    background: #5568d3;
+  .meals-filters {
+    grid-template-columns: repeat(2, minmax(0, 160px)) auto auto;
   }
 }
 
-/* Desktop */
 @media (min-width: 1024px) {
-  .meals-library {
-    padding: 1.5rem;
-  }
-
-  .library-header h2 {
-    font-size: 2rem;
-  }
-
   .meals-grid {
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 1.25rem;
+    grid-template-columns: repeat(3, 1fr);
   }
-
-  .meal-card {
-    padding: 1.25rem;
-  }
-
-  .meal-card-header h3 {
-    font-size: 1.25rem;
-  }
-}
-
-/* Recipe yield control */
-.meal-yield {
-  margin: 0.5rem 0;
-}
-
-.meal-yield input {
-  width: 4rem;
-  padding: 0.25rem;
-}
-
-.meal-yield .yield-note {
-  color: #8a5a00;
-  font-size: 0.85rem;
-  margin: 0.25rem 0;
-}
-
-.meal-yield .yield-error {
-  color: #b00020;
-}
-
-.filter-section {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem 1rem;
-  margin-bottom: 1.25rem;
-}
-
-.filter-section input[type='number'] {
-  width: 4.5rem;
-  min-height: 36px;
-  padding: 0.25rem;
-}
-
-.clear-filters-btn {
-  min-height: 36px;
-}
-
-.filter-note {
-  flex-basis: 100%;
-  margin: 0;
-  color: #8a5a00;
-  font-size: 0.85rem;
-}
-
-.meal-times {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-  color: #555;
-  font-size: 0.9rem;
-}
-
-.make-ahead-badge {
-  background: #ecfdf5;
-  color: #047857;
-  border: 1px solid #10b981;
-  border-radius: 999px;
-  padding: 0 0.5rem;
-}
-
-.meal-details {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 0.75rem;
-  margin: 0.5rem 0;
-}
-
-.meal-details input[type='number'] {
-  width: 4.5rem;
-  padding: 0.25rem;
-}
-
-.meal-form .time-fields input[type='checkbox'] {
-  width: auto;
-  min-height: 0;
-  margin-bottom: 0;
-}
-
-.yield-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
 }
