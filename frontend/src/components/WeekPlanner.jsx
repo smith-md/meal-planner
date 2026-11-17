@@ -17,6 +17,26 @@ const SLOTS = [
   { id: 'dinner', label: 'Dinner' }
 ];
 const NOT_ON_A_DAY = 'none';
+const SLOT_VISIBILITY_KEY = 'meal-planner.visibleSlots';
+
+function loadVisibleSlots() {
+  const all = SLOTS.map(slot => slot.id);
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(SLOT_VISIBILITY_KEY));
+    if (Array.isArray(saved)) return all.filter(id => saved.includes(id));
+  } catch {
+    // Storage unavailable or unreadable: show everything.
+  }
+  return all;
+}
+
+function saveVisibleSlots(ids) {
+  try {
+    window.localStorage.setItem(SLOT_VISIBILITY_KEY, JSON.stringify(ids));
+  } catch {
+    // The choice still applies for this session.
+  }
+}
 
 const parseDate = key => new Date(`${key}T12:00:00`);
 const dateKey = date => [
@@ -84,13 +104,20 @@ function ServingsInput({ meal, servings, onCommit, disabled }) {
 
 // One planned meal with all of its actions. Used in the slot rows and in the unplaced list.
 function PlannedMealCard({
-  entry, day, placed, message, moveButtonRef, onServings, onCook, onSkipToggle, onRemove, onMove, onPairing
+  entry, day, placed, message, moveButtonRef, onServings, onCook, onSkipToggle, onRemove, onMove, onPairing,
+  dragging, onDragStart, onDragEnd
 }) {
   const { meal, schedule, servings } = entry;
   const cooked = schedule.status === 'cooked';
   const skipped = schedule.status === 'skipped';
+  const draggable = placed && !cooked && !!onDragStart;
   return (
-    <li className={`planned-meal${skipped ? ' is-skipped' : ''}${placed ? '' : ' is-unplaced'}`}>
+    <li
+      className={`planned-meal${skipped ? ' is-skipped' : ''}${placed ? '' : ' is-unplaced'}${draggable ? ' is-draggable' : ''}${dragging ? ' is-dragging' : ''}`}
+      draggable={draggable || undefined}
+      onDragStart={draggable ? onDragStart : undefined}
+      onDragEnd={draggable ? onDragEnd : undefined}
+    >
       <div className="planned-meal__head">
         <span className="planned-meal__name">{meal.name}</span>
         {cooked && (
@@ -161,11 +188,27 @@ function PlannedMealCard({
   );
 }
 
-function SlotRow({ slot, day, entries, renderCard, onAdd }) {
+function SlotRow({ slot, day, entries, renderCard, onAdd, dragActive, dropActive, onDragTarget, onDropMeal }) {
   const skipped = day.state === 'none';
   if (skipped && !entries.length) return null;
+  const droppable = dragActive && !skipped;
   return (
-    <div className="slot" data-slot={slot.id}>
+    <div
+      className={`slot${droppable ? ' is-drop-target' : ''}${droppable && dropActive ? ' is-drop-over' : ''}`}
+      data-slot={slot.id}
+      onDragOver={droppable ? event => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        onDragTarget(true);
+      } : undefined}
+      onDragLeave={droppable ? event => {
+        if (!event.currentTarget.contains(event.relatedTarget)) onDragTarget(false);
+      } : undefined}
+      onDrop={droppable ? event => {
+        event.preventDefault();
+        onDropMeal();
+      } : undefined}
+    >
       <h4 className="slot__label">{slot.label}</h4>
       {entries.length > 0 && <ul className="slot__meals">{entries.map(renderCard)}</ul>}
       {!skipped && (
@@ -183,7 +226,10 @@ function SlotRow({ slot, day, entries, renderCard, onAdd }) {
   );
 }
 
-function DayColumn({ day, selected, today, entriesFor, hasMeals, renderCard, onToggle, onAdd }) {
+function DayColumn({
+  day, selected, today, entriesFor, hasMeals, renderCard, onToggle, onAdd, slots,
+  dragActive, dropKey, onDragTarget, onDropMeal
+}) {
   const skipped = day.state === 'none';
   return (
     <section
@@ -203,7 +249,7 @@ function DayColumn({ day, selected, today, entriesFor, hasMeals, renderCard, onT
           {skipped ? 'Plan this day' : 'Skip day'}
         </Button>
       </div>
-      {SLOTS.map(slot => (
+      {slots.map(slot => (
         <SlotRow
           key={slot.id}
           slot={slot}
@@ -211,6 +257,10 @@ function DayColumn({ day, selected, today, entriesFor, hasMeals, renderCard, onT
           entries={entriesFor(day.id, slot.id)}
           renderCard={renderCard}
           onAdd={opener => onAdd(day, slot.id, opener)}
+          dragActive={dragActive}
+          dropActive={dropKey === `${day.id}-${slot.id}`}
+          onDragTarget={over => onDragTarget(day, slot.id, over)}
+          onDropMeal={() => onDropMeal(day, slot.id)}
         />
       ))}
       {skipped && !hasMeals && <p className="day__skipped-note">No meals needed.</p>}
@@ -247,11 +297,16 @@ function DayStrip({ days, selectedId, today, countFor, onSelect }) {
 }
 
 // onMove({ date, slot }) rejects on failure; the sheet then shows the message and keeps its values.
-function MoveSheet({ entry, days, defaultDayId: fallbackDayId, onMove, onClose }) {
+function MoveSheet({ entry, days, slots, defaultDayId: fallbackDayId, onMove, onClose }) {
   const { meal, schedule } = entry;
   const placedBefore = schedule.day_id != null && SLOTS.some(slot => slot.id === schedule.slot);
+  // Offer only visible slots so a meal is not moved into a hidden one; if all are hidden, offer all.
+  const options = slots.length > 0 ? slots : SLOTS;
   const [dayValue, setDayValue] = useState(String(placedBefore ? schedule.day_id : fallbackDayId));
-  const [slot, setSlot] = useState(placedBefore ? schedule.slot : 'dinner');
+  const [slot, setSlot] = useState(() => {
+    if (placedBefore && options.some(option => option.id === schedule.slot)) return schedule.slot;
+    return options.some(option => option.id === 'dinner') ? 'dinner' : options[0].id;
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const dayRef = useRef(null);
@@ -288,7 +343,7 @@ function MoveSheet({ entry, days, defaultDayId: fallbackDayId, onMove, onClose }
       </div>
       <fieldset className="move__slots" disabled={unplace}>
         <legend>Meal</legend>
-        {SLOTS.map(option => (
+        {options.map(option => (
           <label key={option.id} className={slot === option.id ? 'is-on' : ''}>
             <input type="radio" name="move-slot" value={option.id} checked={slot === option.id}
               onChange={() => setSlot(option.id)} />
@@ -321,6 +376,9 @@ function WeekPlanner() {
   const moveButtons = useRef({});
   const focusMoveFor = useRef(null);
   const focusAfter = useRef(null); // { mealId, selectors } resolved after the next plan render
+  const [visibleSlotIds, setVisibleSlotIds] = useState(loadVisibleSlots);
+  const [dragMealId, setDragMealId] = useState(null);
+  const [dropKey, setDropKey] = useState(null);
 
   useEffect(() => {
     getCurrentWeekPlan()
@@ -418,6 +476,32 @@ function WeekPlanner() {
     setMoving(null);
   };
 
+  const toggleSlot = id => {
+    const next = SLOTS.map(slot => slot.id).filter(slotId =>
+      slotId === id ? !visibleSlotIds.includes(slotId) : visibleSlotIds.includes(slotId));
+    setVisibleSlotIds(next);
+    saveVisibleSlots(next);
+  };
+
+  // Drag-to-move. The plan only changes after the server accepts the move, so a failed drop leaves
+  // the card where it was and the error shows on the card.
+  const endDrag = () => {
+    setDragMealId(null);
+    setDropKey(null);
+  };
+
+  const handleDrop = async (entry, day, slotId) => {
+    endDrag();
+    const { schedule, meal } = entry;
+    if (schedule.day_id === day.id && schedule.slot === slotId) return;
+    setMealMessage(meal.id, '');
+    try {
+      await handleMove(meal, { date: day.date, slot: slotId });
+    } catch (err) {
+      setMealMessage(meal.id, err.message || 'Could not move the meal.');
+    }
+  };
+
   const handleServingsChange = async (mealId, servings) => {
     setWeekPlan(await updateWeekMealServings(weekPlan.id, mealId, servings));
   };
@@ -497,13 +581,19 @@ function WeekPlanner() {
     && SLOTS.some(slot => slot.id === entry.schedule.slot)
     && weekPlan.days.some(day => day.id === entry.schedule.day_id);
   const unplaced = entries.filter(entry => !isPlaced(entry));
+  const visibleSlots = SLOTS.filter(slot => visibleSlotIds.includes(slot.id));
+  const isVisible = entry => visibleSlotIds.includes(entry.schedule.slot);
   const entriesFor = (dayId, slot) => entries.filter(entry =>
     isPlaced(entry) && entry.schedule.day_id === dayId && entry.schedule.slot === slot);
-  const countFor = dayId => entries.filter(entry => isPlaced(entry) && entry.schedule.day_id === dayId).length;
+  const countFor = dayId => entries.filter(entry =>
+    isPlaced(entry) && isVisible(entry) && entry.schedule.day_id === dayId).length;
 
   const needDays = weekPlan.days.filter(day => day.state === 'need').length;
-  const totalSlots = needDays * SLOTS.length;
-  const plannedOnDays = entries.filter(entry => isPlaced(entry) && entry.schedule.status !== 'skipped').length;
+  const totalSlots = needDays * visibleSlots.length;
+  const plannedOnDays = entries.filter(entry =>
+    isPlaced(entry) && isVisible(entry) && entry.schedule.status !== 'skipped').length;
+  const hiddenMeals = entries.filter(entry => isPlaced(entry) && !isVisible(entry)).length;
+  const dragEntry = dragMealId != null ? entries.find(entry => entry.meal.id === dragMealId) : null;
   const today = dateKey(new Date());
   const movingEntry = moving != null ? entries.find(entry => entry.meal.id === moving) : null;
 
@@ -526,6 +616,13 @@ function WeekPlanner() {
         onSkipToggle={() => handleSkipToggle(entry.meal, entry.schedule)}
         onRemove={() => handleRemove(entry)}
         onMove={() => setMoving(mealId)}
+        dragging={dragMealId === mealId}
+        onDragStart={event => {
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/plain', String(mealId));
+          setDragMealId(mealId);
+        }}
+        onDragEnd={endDrag}
         onPairing={event => {
           event.preventDefault();
           setPairingSource(String(mealId));
@@ -557,12 +654,32 @@ function WeekPlanner() {
         <p role="status">
           {plannedOnDays} of {totalSlots} slots planned
           <span className="planner__count"> · {plural(entries.length, 'meal')} in the week</span>
+          {hiddenMeals > 0 && (
+            <span className="planner__count"> · {plural(hiddenMeals, 'meal')} in hidden slots</span>
+          )}
         </p>
         <Button ref={addMealButtonRef} className="planner__add"
           onClick={event => openPicker({}, event.currentTarget)}>
           + Add meal to week
         </Button>
       </div>
+
+      <fieldset className="slot-toggle">
+        <legend>Show breakfast / lunch / dinner</legend>
+        {SLOTS.map(slot => (
+          <label key={slot.id} className={visibleSlotIds.includes(slot.id) ? 'is-on' : ''}>
+            <input
+              type="checkbox"
+              checked={visibleSlotIds.includes(slot.id)}
+              onChange={() => toggleSlot(slot.id)}
+            />
+            {slot.label}
+          </label>
+        ))}
+      </fieldset>
+      {visibleSlots.length === 0 && (
+        <p className="slot-toggle__empty" role="status">All meal slots are hidden. Show one above to plan meals.</p>
+      )}
 
       <DayStrip days={weekPlan.days} selectedId={selectedDayId} today={today}
         countFor={countFor} onSelect={setSelectedDayId} />
@@ -579,6 +696,14 @@ function WeekPlanner() {
             renderCard={renderCard}
             onToggle={toggleDayState}
             onAdd={(addDay, slot, opener) => openPicker({ day: addDay, slot }, opener)}
+            slots={visibleSlots}
+            dragActive={dragEntry != null}
+            dropKey={dropKey}
+            onDragTarget={(targetDay, slotId, over) => {
+              const key = `${targetDay.id}-${slotId}`;
+              setDropKey(current => over ? key : (current === key ? null : current));
+            }}
+            onDropMeal={(targetDay, slotId) => dragEntry && handleDrop(dragEntry, targetDay, slotId)}
           />
         ))}
       </div>
@@ -608,6 +733,7 @@ function WeekPlanner() {
         <MoveSheet
           entry={movingEntry}
           days={weekPlan.days}
+          slots={visibleSlots}
           defaultDayId={selectedDayId ?? weekPlan.days[0]?.id}
           onMove={placement => handleMove(movingEntry.meal, placement)}
           onClose={() => setMoving(null)}
