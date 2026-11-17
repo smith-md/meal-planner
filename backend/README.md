@@ -108,7 +108,7 @@ Example `POST /meals/items` body:
 
 - `GET /meals` – list all meals (optional `search` query parameter)
 - `POST /meals` – create a meal; `ingredients` is free text, one line per ingredient
-- `PATCH /meals/{meal_id}` – set or clear the recipe yield (404 if the meal does not exist)
+- `PATCH /meals/{meal_id}` – partially update `name`, `notes`, `tags`, `ingredients`, `yield_servings`, `prep_minutes`, `cook_minutes` and `make_ahead` (404 if the meal does not exist)
 - `PATCH /meals/{meal_id}/details` – partially update `prep_minutes`, `cook_minutes` and `make_ahead` (404 if the meal does not exist)
 
 `yield_servings` is how many servings the recipe's written quantities make.
@@ -120,12 +120,21 @@ They are accepted by `POST /meals` and returned by `GET /meals`. Negative, non-i
 or above-1440 minutes, and a non-boolean or `null` `make_ahead`, return 422.
 
 `PATCH /meals/{meal_id}/details` changes only the fields present in the body: an omitted
-field is left as it is (including `yield_servings`), and `null` clears a time. The
-yield-only `PATCH /meals/{meal_id}` is unchanged. Example (clears cook time, sets make-ahead):
+field is left as it is (including `yield_servings`), and `null` clears a time. Example
+(clears cook time, sets make-ahead):
 
 ```json
 { "cook_minutes": null, "make_ahead": true }
 ```
+
+`PATCH /meals/{meal_id}` works the same way for all of `name`, `notes`, `tags`,
+`ingredients`, `yield_servings`, `prep_minutes`, `cook_minutes` and `make_ahead`: only
+fields present in the body change, and an empty body `{}` is a no-op that returns the meal.
+`name` cannot be blank or `null`, and `make_ahead` cannot be `null` (422 for either).
+`null` clears `yield_servings`, `notes`, `tags`, `ingredients`, `prep_minutes` and
+`cook_minutes`. A yield-only body such as `{ "yield_servings": null }` behaves as before.
+`name` is trimmed. The web UI's meal drawer saves with this endpoint, sending only the
+fields that changed.
 
 The Meals Library filters (maximum prep, maximum cook, make-ahead only) run in the
 browser over the `GET /meals` result and need no extra endpoint. They combine with the
@@ -142,10 +151,16 @@ Example `POST /meals` body:
 }
 ```
 
-Example `PATCH /meals/{meal_id}` body (send `null` to clear the yield):
+Example `PATCH /meals/{meal_id}` body (send `null` to clear the yield; other fields are left alone):
 
 ```json
 { "yield_servings": 6 }
+```
+
+Example changing several fields at once:
+
+```json
+{ "name": "Veg chili", "tags": "veg, quick", "notes": null }
 ```
 
 ### Weekly plan
