@@ -211,12 +211,30 @@ defaults to the meal's `yield_servings`, which may be `null`. The response is
 the week plan; its `meal_servings` list holds `{ "meal_id", "servings" }` for
 each planned meal.
 
-#### Change planned servings
+To plan the meal for a day and meal slot, add `date` (a day of that week) and
+`slot` (`breakfast`, `lunch` or `dinner`):
 
-- `PATCH /week-plans/{week_plan_id}/meals/{meal_id}` with body `{ "servings": 6 }`
+```json
+{ "meal_id": 1, "date": "2026-11-17", "slot": "lunch" }
+```
 
-`servings` is required (1-99). Returns the updated week plan, or 404 if the
-meal is not planned in that week.
+- `date` and `slot` must be sent together or not at all, and an unknown slot is rejected (422, "Choose both a day and a meal slot, or neither." for a lone one).
+- A `date` that is not a day of that week returns 400 ("Choose a day in this week.").
+- A meal can be planned once per week. Posting a placement for a meal that is already planned that week returns 409 ("This meal is already planned this week. Move it instead."); posting it without a placement leaves the plan unchanged.
+- Without `date` and `slot` the meal is planned but not on a day.
+
+#### Change planned servings or move a meal
+
+- `PATCH /week-plans/{week_plan_id}/meals/{meal_id}` with a partial body: `{ "servings": 6 }`, `{ "date": "2026-11-18", "slot": "dinner" }`, or both.
+
+`servings` is 1-99 and cannot be `null`. A move needs `date` and `slot` together;
+`{ "date": null, "slot": null }` unschedules the meal (it stays planned, with no
+day). The body must contain `servings` or a placement, otherwise 422. A date
+outside the week returns 400. Returns the updated week plan (including the new
+`meal_schedule`), or 404 if the meal is not planned in that week. A cooked meal
+cannot be moved ("This meal is already cooked; it cannot be moved.") or have its
+servings changed ("This meal is already cooked; its servings are fixed."); both
+return 409. Moving never changes stock.
 
 #### Remove a meal from a week
 
@@ -226,9 +244,9 @@ Removes that meal from the week and returns the updated week plan.
 
 #### Assign a day, skip, and cook
 
-- `PUT /week-plans/{week_plan_id}/meals/{meal_id}/day` with `{ "day_id": 12 }` assigns the meal to a day of that week (400 if the day is in another week); `null` unassigns. Returns the week plan, or 404 if the meal is not planned there. 409 if already cooked.
+- `PUT /week-plans/{week_plan_id}/meals/{meal_id}/day` with `{ "day_id": 12 }` assigns the meal to a day of that week (400 if the day is in another week); `null` unassigns. Assigning a day sets the slot to `dinner` when the meal has none (an existing slot is kept); unassigning clears the slot. Returns the week plan, or 404 if the meal is not planned there. 409 if already cooked. To choose the slot, use the PATCH above.
 - `PUT /week-plans/{week_plan_id}/meals/{meal_id}/status` with `{ "status": "planned" | "skipped" }`. 409 if already cooked.
-- The week plan's `meal_schedule` lists `{ meal_id, day_id, status, cooked_servings, cooked_at }` per planned meal.
+- The week plan's `meal_schedule` lists `{ meal_id, day_id, slot, status, cooked_servings, cooked_at }` per planned meal; `slot` is `breakfast`, `lunch`, `dinner` or `null` (`null` exactly when `day_id` is `null`).
 - `POST /week-plans/{week_plan_id}/meals/{meal_id}/cook` marks the meal cooked and deducts ingredients at the planned servings, which are frozen as `cooked_servings`. 409 if no day is assigned or the meal is skipped. It deducts exactly once; repeats return the stored result with `replayed: true`.
   - Deduction order: fridge, then pantry. Short stock floors at zero; each `deductions` entry has `item`, `unit`, `requested`, `deducted`, `short`. Unparseable lines are in `untracked`.
   - A cooked meal cannot be re-dated, re-skipped, have its servings changed (PATCH), or be removed (DELETE); these return 409.
@@ -328,6 +346,11 @@ database). On startup the app runs `create_all` and then adds the
 `meals.yield_servings`, `meals.prep_minutes`, `meals.cook_minutes`, `meals.make_ahead` and
 `week_meals.servings` columns to older databases that lack them. This is idempotent;
 existing rows keep `NULL` values, except `meals.make_ahead`, which is `false` (column default 0).
+
+It also adds the nullable `week_meals.slot` column and backfills it: every planned meal that
+has a day but no slot gets `dinner`. Rows that already have a slot, and meals with no day, are
+left alone, so running it again changes nothing, and no meal, servings, status or cooked
+history is lost.
 
 ---
 

@@ -27,6 +27,7 @@ _ADDED_COLUMNS = (
     ("week_meals", "status", "VARCHAR"),
     ("week_meals", "cooked_servings", "INTEGER"),
     ("week_meals", "cooked_at", "DATETIME"),
+    ("week_meals", "slot", "VARCHAR"),
     ("inventory_items", "minimum", "FLOAT"),
 )
 
@@ -40,6 +41,13 @@ def ensure_columns(bind):
         if column not in existing:
             with bind.begin() as connection:
                 connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl_type}"))
+    # Meals that already had a day before slots existed become dinners. Guarded, so it is idempotent
+    # and never touches a row that already has a slot or has no day.
+    if inspect(bind).has_table("week_meals"):
+        with bind.begin() as connection:
+            connection.execute(text(
+                "UPDATE week_meals SET slot = 'dinner' WHERE day_id IS NOT NULL AND slot IS NULL"
+            ))
 
 
 def get_db():

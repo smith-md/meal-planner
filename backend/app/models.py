@@ -19,6 +19,8 @@ class WeekMeal(Base):
     status = Column(String, nullable=True)
     cooked_servings = Column(Integer, nullable=True)  # frozen when the meal is cooked
     cooked_at = Column(DateTime, nullable=True)
+    # breakfast|lunch|dinner (enforced in the app); NULL exactly when day_id is NULL.
+    slot = Column(String, nullable=True)
 
     meal = relationship("Meal")
 

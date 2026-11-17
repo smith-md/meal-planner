@@ -60,9 +60,14 @@ class WeekMealServings(BaseModel):
         from_attributes = True
 
 
+Slot = Literal["breakfast", "lunch", "dinner"]
+_Date = date  # a field named `date` shadows the type inside a class body
+
+
 class WeekMealSchedule(BaseModel):
     meal_id: int
     day_id: Optional[int] = None
+    slot: Optional[str] = None
     status: str = "planned"
     cooked_servings: Optional[int] = None
     cooked_at: Optional[datetime] = None
@@ -91,13 +96,43 @@ class DayUpdate(BaseModel):
     state: Optional[str] = None
 
 
+_PLACEMENT_MESSAGE = "Choose both a day and a meal slot, or neither."
+
+
 class WeekMealAdd(BaseModel):
     meal_id: int
     servings: Optional[int] = Field(None, ge=1, le=99)
+    date: Optional[_Date] = None
+    slot: Optional[Slot] = None
+
+    @model_validator(mode="after")
+    def _placement_is_complete(self):
+        if (self.date is None) != (self.slot is None):
+            raise ValueError(_PLACEMENT_MESSAGE)
+        return self
 
 
 class WeekMealUpdate(BaseModel):
-    servings: int = Field(ge=1, le=99)
+    """Partial update: servings and/or a move. date+slot both null unschedules."""
+    servings: Optional[int] = Field(None, ge=1, le=99)
+    date: Optional[_Date] = None
+    slot: Optional[Slot] = None
+
+    @model_validator(mode="after")
+    def _valid_change(self):
+        fields = self.model_fields_set
+        if not fields & {"servings", "date", "slot"}:
+            raise ValueError("Send servings, or a day and a meal slot.")
+        if "servings" in fields and self.servings is None:
+            raise ValueError("servings cannot be null")
+        if fields & {"date", "slot"}:
+            if not {"date", "slot"} <= fields or (self.date is None) != (self.slot is None):
+                raise ValueError(_PLACEMENT_MESSAGE)
+        return self
+
+    @property
+    def moves(self) -> bool:
+        return "date" in self.model_fields_set
 
 
 class WeekMealDayUpdate(BaseModel):
