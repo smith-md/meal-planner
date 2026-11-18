@@ -127,6 +127,39 @@ export function composeAmount(quantity, name) {
   return `${qty} ${item}`;
 }
 
+// Unit names the backend recognises when it reads an amount. Source: backend/app/pairings.py
+// (UNIT_ALIASES, including the "fluid ounce" group). Keep in step with that file; "dozen" is
+// deliberately absent because the backend does not know it.
+const BACKEND_UNITS = new Set([
+  ...(
+    'cup cups c tablespoon tablespoons tbsp tbs teaspoon teaspoons tsp pint pints pt quart quarts qt ' +
+    'gallon gallons gal milliliter milliliters ml liter liters l ounce ounces oz pound pounds lb lbs ' +
+    'gram grams g kilogram kilograms kg piece pieces pc each whole clove cloves bunch bunches can cans ' +
+    'package packages pkg bag bags head heads floz'
+  ).split(' '),
+  'fluid ounces', 'fluid ounce', 'fl oz'
+]);
+const BACKEND_GLYPHS = { '½': '1/2', '¼': '1/4', '¾': '3/4', '⅓': '1/3', '⅔': '2/3', '⅛': '1/8' };
+const QUANTITY_SHAPE = /^(\d+\s+\d+\/\d+|\d+\/\d+|\d*\.\d+|\d+)(?:\s+(.+))?$/;
+
+export const QUANTITY_ERROR = 'Use a number, or a number and a unit like lb or cup.';
+
+// Checks a typed amount the way the backend will read it: a number, optionally followed by exactly
+// one unit word the backend knows. Returns 'empty' (not chosen yet), 'ok' or 'invalid'.
+export function checkQuantityText(text) {
+  let value = String(text ?? '').toLowerCase().split(/\s+/).filter(Boolean).join(' ');
+  if (!value) return 'empty';
+  Object.entries(BACKEND_GLYPHS).forEach(([glyph, fraction]) => {
+    value = value.split(glyph).join(` ${fraction}`).trim();
+  });
+  const match = value.match(QUANTITY_SHAPE);
+  if (!match) return 'invalid';
+  const number = parseQuantityText(match[1]);
+  if (number === null || !(number > 0)) return 'invalid';
+  if (match[2] && !BACKEND_UNITS.has(match[2])) return 'invalid';
+  return 'ok';
+}
+
 // "Tuesday" -> "Tue"; anything else is returned as is.
 export function shortDayName(name) {
   const match = String(name || '').match(/^(mon|tue|wed|thu|fri|sat|sun)[a-z]*$/i);

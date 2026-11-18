@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import Button from './ui/Button.jsx';
 import { AlertIcon } from './ui/icons.jsx';
-import { composeAmount } from '../utils/format';
+import { QUANTITY_ERROR, checkQuantityText, composeAmount } from '../utils/format';
 import './PutAwayPanel.css';
-
-const HAS_QUANTITY = /^\s*[\d½¼¾⅓⅔⅛]/;
 
 const DESTINATIONS = [
   { value: 'fridge', label: 'Fridge' },
@@ -76,8 +74,8 @@ export default function PutAwayPanel({ id, items, defaultsFor, putAway, onBusyCh
       const quantity = row.quantity.trim();
       // No quantity yet: the item stays in the waiting list rather than being an error.
       if (row.dest !== 'keep' && !quantity) continue;
-      if (row.dest !== 'keep' && !HAS_QUANTITY.test(quantity)) {
-        failed[item.id] = 'Start with a number, like 6 or 2 lb.';
+      if (row.dest !== 'keep' && checkQuantityText(quantity) !== 'ok') {
+        failed[item.id] = QUANTITY_ERROR;
         continue;
       }
       const attempt = { amount: row.dest === 'keep' ? '' : composeAmount(quantity, row.name), dest: row.dest };

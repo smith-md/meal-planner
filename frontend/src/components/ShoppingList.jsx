@@ -21,7 +21,7 @@ import { EmptyState, ErrorState, Skeleton } from './ui/States.jsx';
 import StatusPill from './ui/StatusPill.jsx';
 import { useToast } from './ui/Toast.jsx';
 import PutAwayPanel from './PutAwayPanel.jsx';
-import { abbreviateAmount, abbreviateQuantity, composeAmount, splitAmount } from '../utils/format';
+import { QUANTITY_ERROR, abbreviateAmount, abbreviateQuantity, checkQuantityText, composeAmount, splitAmount } from '../utils/format';
 import { AlertIcon, CheckIcon, CloseIcon, PlusIcon } from './ui/icons.jsx';
 import './ShoppingList.css';
 
@@ -669,8 +669,8 @@ function ShoppingList({ onOpenPlanner }) {
       setError({ id: entry.id, message: 'Enter a quantity like 6 or 2 lb.' });
       return;
     }
-    if (!HAS_QUANTITY.test(quantity)) {
-      setError({ id: entry.id, message: 'Start with a number, like 6 or 2 lb.' });
+    if (checkQuantityText(quantity) !== 'ok') {
+      setError({ id: entry.id, message: QUANTITY_ERROR });
       return;
     }
     const amount = composeAmount(quantity, creditEdit.name);
@@ -1094,7 +1094,7 @@ function ShoppingList({ onOpenPlanner }) {
             {isPurchased && !entry.credit && kept.has(entry.id) && (
               <span className="shopping-list__credit shopping-list__credit--plain">Kept on list, not added to stock</span>
             )}
-            {isPurchased && !entry.credit && !kept.has(entry.id) && (
+            {isPurchased && !entry.credit && !kept.has(entry.id) && entry.id !== busyId && (
               <span className="shopping-list__credit shopping-list__credit--plain">Waiting to be put away</span>
             )}
           </span>
@@ -1155,9 +1155,13 @@ function ShoppingList({ onOpenPlanner }) {
                 value={creditEdit.quantity}
                 placeholder="e.g. 6 or 2 lb"
                 onChange={(e) => setCreditEdit({ ...creditEdit, quantity: e.target.value })}
+                aria-invalid={error && error.id === entry.id ? true : undefined}
+                aria-describedby={error && error.id === entry.id ? `credit-edit-error-${entry.id}` : undefined}
               />
             </label>
-            {renderError(entry)}
+            {error && error.id === entry.id && (
+              <InlineError id={`credit-edit-error-${entry.id}`}>{error.message}</InlineError>
+            )}
             <div className="shopping-list__actions">
               <Button type="submit" disabled={working}>Save</Button>
               <Button variant="secondary" onClick={() => { setCreditEdit(null); setError(null); focusEditButton(entry); }} disabled={working}>
