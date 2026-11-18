@@ -19,6 +19,17 @@
   font-size: 22px;
   font-weight: 700;
   color: var(--ink);
+  /* Keep the focused heading clear of the bottom tab bar when it is scrolled into view. */
+  scroll-margin-top: var(--space-4);
+  scroll-margin-bottom: calc(var(--nav-height) + var(--space-6));
+}
+
+.put-away__summary:focus {
+  outline: none;
+}
+
+.put-away__input {
+  scroll-margin-bottom: calc(var(--nav-height) + var(--space-6));
 }
 
 .put-away__heading:focus {
@@ -198,7 +209,9 @@
   gap: var(--space-2);
 }
 
-/* Trigger bar: sticky above the bottom tab bar on phones, in the header from 768px. */
+/* Trigger bar: last in the list (DOM order equals visual order), sticky at the bottom. Above the
+   bottom tab bar below 1024px; the side rail from 1024px leaves the bottom free. While the panel is
+   open the bar stops being sticky, so it cannot cover the panel heading or duplicate the trigger. */
 .put-away-bar {
   position: sticky;
   bottom: calc(var(--nav-height) + var(--space-2) + env(safe-area-inset-bottom, 0px));
@@ -218,20 +231,14 @@
   white-space: normal;
 }
 
-@media (min-width: 768px) {
-  .put-away-bar {
-    position: static;
-    order: -1;
-    justify-content: flex-start;
-    margin: 0 0 var(--space-3);
-    padding: 0;
-    background: transparent;
-    border: 0;
-    box-shadow: none;
-  }
+.put-away-bar--open {
+  position: static;
+  box-shadow: none;
+}
 
-  .put-away-bar > button {
-    flex: 0 0 auto;
+@media (min-width: 1024px) {
+  .put-away-bar {
+    bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
   }
 }
 

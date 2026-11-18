@@ -482,6 +482,15 @@
   text-decoration: line-through;
 }
 
+/* Bought rows can carry Edit and Undo buttons: let them wrap under the name on narrow screens. */
+.shopping-list__item--bought {
+  flex-wrap: wrap;
+}
+
+.shopping-list__item--bought .shopping-list__name {
+  flex: 1 1 9rem;
+}
+
 .shopping-list__item--bought .shopping-list__credit,
 .shopping-list__item--bought .shopping-list__tag {
   text-decoration: none;

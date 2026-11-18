@@ -21,6 +21,7 @@ import { EmptyState, ErrorState, Skeleton } from './ui/States.jsx';
 import StatusPill from './ui/StatusPill.jsx';
 import { useToast } from './ui/Toast.jsx';
 import PutAwayPanel from './PutAwayPanel.jsx';
+import { abbreviateAmount, abbreviateQuantity, composeAmount, splitAmount } from '../utils/format';
 import { AlertIcon, CheckIcon, CloseIcon, PlusIcon } from './ui/icons.jsx';
 import './ShoppingList.css';
 
@@ -40,12 +41,23 @@ function idSlug(key) {
   return `${slug || 'row'}-${hash.toString(36)}`;
 }
 
-// The amount to credit if it is known, e.g. "2 cups flour". Null when the quantity is missing.
-function plannedAmount(entry) {
+// An entry as a quantity part ("2 lb", "6", or "" when unknown) and a fixed item name.
+function amountParts(entry) {
   if (entry.item && entry.quantity) {
-    return [entry.quantity, entry.unit, entry.item].filter(Boolean).join(' ');
+    return { quantity: [entry.quantity, entry.unit].filter(Boolean).join(' '), name: entry.item };
   }
-  return HAS_QUANTITY.test(entry.name) ? entry.name : null;
+  if (HAS_QUANTITY.test(entry.name)) {
+    const parts = splitAmount(entry.name);
+    if (parts.quantity && parts.name) return { quantity: parts.quantity, name: parts.name };
+  }
+  return { quantity: '', name: entry.item || entry.name };
+}
+
+// The amount to credit if it is known, e.g. "2 cups flour". Null when the quantity is missing.
+// Check-time credit, the put-away panel and Edit amount all send "<quantity> <item name>".
+function plannedAmount(entry) {
+  const { quantity, name } = amountParts(entry);
+  return quantity ? composeAmount(quantity, name) : null;
 }
 
 const PLACE_LABELS = { fridge: 'Fridge', pantry: 'Pantry' };
@@ -285,7 +297,12 @@ function ShoppingList({ onOpenPlanner }) {
   const [panelBusy, setPanelBusy] = useState(false);
   const [creditEdit, setCreditEdit] = useState(null); // { id, amount }
   const putAwayTrigger = useRef(null);
-  const summaryRef = useRef(null);
+  const summaryRef = useRef(null); // the Bought heading
+  const toBuyHeadingRef = useRef(null);
+  const checkRefs = useRef({}); // entry id -> its checkbox
+  const editRefs = useRef({}); // entry id -> its Edit button
+  const pendingFocus = useRef(null); // { targets: [() => element], expires } where focus goes once the list settles
+  const creditedPurchases = useRef(new Set()); // purchase ids the server accepted (a failed POST has nothing to revert)
   const freshEntries = useRef({}); // entry id -> entry with the new purchase id after a revert
   const [error, setError] = useState(null); // { id, message }
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -368,6 +385,33 @@ function ShoppingList({ onOpenPlanner }) {
       setFocusStatusKey(null);
     }
   }, [focusStatusKey, recon.data, entries]);
+
+  // Focus must never fall to BODY when a row moves between To buy and Bought, or after Undo. Rows
+  // are remounted when they move and their checkboxes are disabled while a save is running, so
+  // focus is applied after the render in which the target can take it.
+  useEffect(() => {
+    const want = pendingFocus.current;
+    if (!want) return;
+    if (Date.now() > want.expires) {
+      pendingFocus.current = null;
+      return;
+    }
+    const active = document.activeElement;
+    const free = !active || active === document.body || active.disabled
+      || (active.closest && active.closest('.ui-toast-region'));
+    if (!free) {
+      pendingFocus.current = null; // the user moved focus somewhere on purpose
+      return;
+    }
+    for (const getTarget of want.targets) {
+      const node = getTarget();
+      if (!node) continue;
+      if (node.disabled) return; // try again after the next render
+      node.focus();
+      pendingFocus.current = null;
+      return;
+    }
+  });
 
   useEffect(() => {
     if (!flash) return undefined;
@@ -485,10 +529,12 @@ function ShoppingList({ onOpenPlanner }) {
   // retries, so the server credits it once.
   const creditCore = async (entry, amount, location) => {
     const result = await recordPurchase(entry.purchase_id, amount, location);
+    creditedPurchases.current.add(entry.purchase_id);
     const saved = await updateGroceryEntry(entry.id, {
       purchased: true,
       credit: { amount: result.amount, location: result.location }
     });
+    creditedPurchases.current.delete(entry.purchase_id);
     delete freshEntries.current[entry.id];
     replaceEntry(saved);
     return saved;
@@ -524,9 +570,12 @@ function ShoppingList({ onOpenPlanner }) {
       const saved = await creditCore(entry, amount, location);
       refreshAfterChange(selectedWeek && selectedWeek.id);
       toast.show({
-        message: `Added ${saved.credit.amount} to ${PLACE_LABELS[saved.credit.location] || saved.credit.location}`,
+        message: `Added ${abbreviateAmount(saved.credit.amount)} to ${PLACE_LABELS[saved.credit.location] || saved.credit.location}`,
         actionLabel: 'Undo',
-        onAction: () => revertEntry(saved)
+        onAction: () => {
+          focusReverted([saved]);
+          return revertEntry(saved);
+        }
       });
       return saved;
     } catch (err) {
@@ -553,15 +602,37 @@ function ShoppingList({ onOpenPlanner }) {
     }
   };
 
+  // Where focus goes when a row leaves its group: the next row's checkbox, else the previous one,
+  // else the group heading.
+  const focusAfterMove = (entry, wasPurchased) => {
+    const group = wasPurchased ? purchased : toBuy;
+    const index = group.findIndex(other => other.id === entry.id);
+    const targets = [group[index + 1], group[index - 1]]
+      .filter(Boolean)
+      .map(other => () => checkRefs.current[other.id]);
+    targets.push(() => (wasPurchased ? summaryRef.current : null), () => toBuyHeadingRef.current);
+    pendingFocus.current = { targets, expires: Date.now() + 8000 };
+  };
+
+  // After Undo the reverted row is back in To buy: focus its checkbox.
+  const focusReverted = (saved) => {
+    const targets = saved.map(entry => () => checkRefs.current[entry.id]);
+    targets.push(() => toBuyHeadingRef.current);
+    pendingFocus.current = { targets, expires: Date.now() + 8000 };
+  };
+
   const togglePurchased = async (entry) => {
     if (busyId !== null || panelBusy) return;
+    focusAfterMove(entry, entry.purchased);
     if (entry.purchased) {
       setCreditEdit(null);
       await revertEntry(entry);
       return;
     }
     const amount = plannedAmount(entry);
-    const location = knownLocation(entry) || lastLocation(entry);
+    // Credit on check only when the item is stocked in exactly one place. With two places or none
+    // it waits for the Put away panel, where the last credited place is only the default.
+    const location = knownLocation(entry);
     // Optimistic: the Shop badge drops as soon as the box is checked.
     replaceEntry({ ...entry, purchased: true });
     if (amount && location) {
@@ -574,19 +645,38 @@ function ShoppingList({ onOpenPlanner }) {
   const startCreditEdit = (entry) => {
     if (busyId !== null || panelBusy) return;
     setError(null);
-    setCreditEdit({ id: entry.id, amount: entry.credit.amount });
+    // Only the quantity is editable; the item name stays fixed so it cannot be overwritten.
+    const parts = splitAmount(entry.credit.amount);
+    setCreditEdit({ id: entry.id, quantity: abbreviateQuantity(parts.quantity), name: parts.name });
+  };
+
+  const focusEditButton = (entry) => {
+    pendingFocus.current = {
+      targets: [
+        () => editRefs.current[entry.id],
+        () => checkRefs.current[entry.id],
+        () => toBuyHeadingRef.current
+      ],
+      expires: Date.now() + 8000
+    };
   };
 
   // Same as before: revert the credit, then credit the corrected amount.
   const saveCreditEdit = async (entry) => {
     if (busyId !== null || panelBusy || !creditEdit) return;
-    const amount = creditEdit.amount.trim();
-    if (!amount) {
-      setError({ id: entry.id, message: 'Enter an amount like 2 cups of rice.' });
+    const quantity = creditEdit.quantity.trim();
+    if (!quantity) {
+      setError({ id: entry.id, message: 'Enter a quantity like 6 or 2 lb.' });
       return;
     }
-    if (amount === entry.credit.amount) {
+    if (!HAS_QUANTITY.test(quantity)) {
+      setError({ id: entry.id, message: 'Start with a number, like 6 or 2 lb.' });
+      return;
+    }
+    const amount = composeAmount(quantity, creditEdit.name);
+    if (abbreviateAmount(amount) === abbreviateAmount(entry.credit.amount)) {
       setCreditEdit(null);
+      focusEditButton(entry);
       return;
     }
     const location = entry.credit.location;
@@ -595,6 +685,7 @@ function ShoppingList({ onOpenPlanner }) {
     setCreditEdit(null);
     replaceEntry({ ...fresh, purchased: true });
     await creditEntry(fresh, amount, location);
+    focusEditButton(entry);
   };
 
   // One row of the Put away panel. Throws a readable error so the panel can show it on the row.
@@ -603,14 +694,18 @@ function ShoppingList({ onOpenPlanner }) {
       rememberKept(entry.id, true);
       return null;
     }
-    if (!amount) throw new Error('Enter an amount like 2 cups of rice.');
+    if (!amount) throw new Error('Enter a quantity like 6 or 2 lb.');
     let base = freshEntries.current[entry.id] || entry;
     if (previous && previous.dest !== 'keep' && (previous.amount !== amount || previous.dest !== dest)) {
-      // An earlier attempt may already have credited the old values: take them back first.
-      try {
-        await revertPurchase(base.purchase_id);
-      } catch (err) {
-        // Nothing was credited under this id, so there is nothing to take back.
+      // An earlier attempt may already have credited the old values: take them back first. If its
+      // POST failed nothing was credited under this id, so no DELETE is sent for it.
+      if (creditedPurchases.current.has(base.purchase_id)) {
+        try {
+          await revertPurchase(base.purchase_id);
+          creditedPurchases.current.delete(base.purchase_id);
+        } catch (err) {
+          // Already gone on the server, so there is nothing to take back.
+        }
       }
       base = await updateGroceryEntry(entry.id, { purchased: false });
       freshEntries.current[entry.id] = base;
@@ -626,6 +721,7 @@ function ShoppingList({ onOpenPlanner }) {
         message: `Put away ${credited.length} ${credited.length === 1 ? 'item' : 'items'}`,
         actionLabel: 'Undo',
         onAction: async () => {
+          focusReverted(credited);
           let failures = 0;
           for (const saved of credited) {
             if (!(await revertEntry(saved))) failures += 1;
@@ -760,8 +856,9 @@ function ShoppingList({ onOpenPlanner }) {
 
   const toBuy = entries.filter(entry => !entry.purchased);
   const purchased = entries.filter(entry => entry.purchased);
-  // Bought but not yet in stock and not set aside with Keep on list.
-  const pending = purchased.filter(entry => !entry.credit && !kept.has(entry.id));
+  // Bought but not yet in stock and not set aside with Keep on list. An entry whose save is still
+  // running is not settled (its credit may be about to land), so it is not counted yet.
+  const pending = purchased.filter(entry => !entry.credit && !kept.has(entry.id) && entry.id !== busyId);
   const working = busyId !== null || panelBusy;
   const data = recon.data;
   const changeCount = data ? data.changes.add.length + data.changes.update.length + data.changes.remove.length : 0;
@@ -979,6 +1076,7 @@ function ShoppingList({ onOpenPlanner }) {
           <label className="shopping-list__check">
             <input
               type="checkbox"
+              ref={(node) => { if (node) checkRefs.current[entry.id] = node; else delete checkRefs.current[entry.id]; }}
               checked={entry.purchased}
               disabled={working}
               aria-label={`${entry.name}, ${isPurchased ? 'bought' : 'to buy'}`}
@@ -990,7 +1088,7 @@ function ShoppingList({ onOpenPlanner }) {
             {tag && <small className="shopping-list__tag">{tag}</small>}
             {isPurchased && entry.credit && (
               <span className="shopping-list__credit">
-                Added {entry.credit.amount} to {PLACE_LABELS[entry.credit.location] || entry.credit.location}
+                Added {abbreviateAmount(entry.credit.amount)} to {PLACE_LABELS[entry.credit.location] || entry.credit.location}
               </span>
             )}
             {isPurchased && !entry.credit && kept.has(entry.id) && (
@@ -1001,14 +1099,25 @@ function ShoppingList({ onOpenPlanner }) {
             )}
           </span>
           {isPurchased && entry.credit && (
-            <Button
-              variant="secondary"
-              aria-label={`Edit amount added for ${entry.name}`}
-              onClick={() => startCreditEdit(entry)}
-              disabled={working}
-            >
-              Edit
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                ref={(node) => { if (node) editRefs.current[entry.id] = node; else delete editRefs.current[entry.id]; }}
+                aria-label={`Edit amount added for ${entry.name}`}
+                onClick={() => startCreditEdit(entry)}
+                disabled={working}
+              >
+                Edit
+              </Button>
+              <Button
+                variant="secondary"
+                aria-label={`Undo: take ${entry.name} out of stock and back to To buy`}
+                onClick={() => togglePurchased(entry)}
+                disabled={working}
+              >
+                Undo
+              </Button>
+            </>
           )}
           <Button
             variant="icon"
@@ -1033,23 +1142,25 @@ function ShoppingList({ onOpenPlanner }) {
                 event.stopPropagation();
                 setCreditEdit(null);
                 setError(null);
+                focusEditButton(entry);
               }
             }}
           >
             <label className="shopping-list__label">
-              Amount added for {entry.name}
+              Quantity added of {creditEdit.name || entry.name}
               <input
                 className="shopping-list__input"
                 type="text"
                 autoFocus
-                value={creditEdit.amount}
-                onChange={(e) => setCreditEdit({ ...creditEdit, amount: e.target.value })}
+                value={creditEdit.quantity}
+                placeholder="e.g. 6 or 2 lb"
+                onChange={(e) => setCreditEdit({ ...creditEdit, quantity: e.target.value })}
               />
             </label>
             {renderError(entry)}
             <div className="shopping-list__actions">
               <Button type="submit" disabled={working}>Save</Button>
-              <Button variant="secondary" onClick={() => { setCreditEdit(null); setError(null); }} disabled={working}>
+              <Button variant="secondary" onClick={() => { setCreditEdit(null); setError(null); focusEditButton(entry); }} disabled={working}>
                 Cancel
               </Button>
             </div>
@@ -1087,7 +1198,9 @@ function ShoppingList({ onOpenPlanner }) {
     return (
       <>
         <div className="shopping-list__list-section">
-          <h3 className="shopping-list__group-title">To buy ({toBuy.length})</h3>
+          <h3 className="shopping-list__group-title shopping-list__summary" tabIndex={-1} ref={toBuyHeadingRef}>
+            To buy ({toBuy.length})
+          </h3>
           <div className="shopping-list__items">
             {toBuy.length === 0 ? (
               <EmptyState message="Nothing to buy yet. Use Review changes to add what this week needs, or add an item." />
@@ -1116,7 +1229,7 @@ function ShoppingList({ onOpenPlanner }) {
                 id="put-away-panel"
                 items={pending}
                 defaultsFor={(entry) => ({
-                  amount: plannedAmount(entry) || entry.item || entry.name,
+                  ...amountParts(entry),
                   dest: knownLocation(entry) || lastLocation(entry) || ''
                 })}
                 putAway={putAwayEntry}
@@ -1251,7 +1364,7 @@ function ShoppingList({ onOpenPlanner }) {
       {addError && <InlineError id="shopping-add-error">{addError}</InlineError>}
 
       {pending.length > 0 && (
-        <div className="put-away-bar">
+        <div className={putAwayOpen ? 'put-away-bar put-away-bar--open' : 'put-away-bar'}>
           <Button
             ref={putAwayTrigger}
             onClick={() => setPutAwayOpen(open => !open)}

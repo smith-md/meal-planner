@@ -59,6 +59,74 @@ export function formatQuantityText(text, unit) {
   return number === null ? [text, unit].filter(Boolean).join(' ') : formatQuantity(number, unit);
 }
 
+// Unit words the backend understands (pairings.UNIT_ALIASES), plus "dozen", for splitting a typed amount.
+const UNIT_WORDS = new Set((
+  'cup cups c tablespoon tablespoons tbsp tbs teaspoon teaspoons tsp pint pints pt quart quarts qt ' +
+  'gallon gallons gal milliliter milliliters ml liter liters l ounce ounces oz pound pounds lb lbs ' +
+  'gram grams g kilogram kilograms kg piece pieces pc each whole clove cloves bunch bunches can cans ' +
+  'package packages pkg bag bags head heads dozen'
+).split(' '));
+const LONG_TO_SHORT = {};
+Object.entries(SHORT_UNITS).forEach(([long, short]) => {
+  LONG_TO_SHORT[long] = short;
+  LONG_TO_SHORT[`${long}s`] = short;
+});
+const LEADING_NUMBER = /^\s*(\d+\s+\d+\/\d+|\d+\/\d+|\d*\.\d+|\d+[½¼¾⅓⅔⅛]?|[½¼¾⅓⅔⅛])(?=\s|$)/;
+const TWO_WORD_UNITS = ['fluid ounces', 'fluid ounce', 'fl oz'];
+
+// "2 lb cabbage" -> { number: "2", unit: "lb", name: "cabbage", quantity: "2 lb" }.
+// With no leading number the whole text is the name and quantity is "".
+// With quantityOnly ("2 lb") the text has no item name, so a trailing unit word is still a unit.
+export function splitAmount(text, { quantityOnly = false } = {}) {
+  const value = String(text ?? '').trim();
+  const match = value.match(LEADING_NUMBER);
+  if (!match) return { number: '', unit: '', name: value, quantity: '' };
+  const number = match[1];
+  const rest = value.slice(match[0].length).trim();
+  const lower = rest.toLowerCase();
+  let unit = '';
+  let name = rest;
+  const phrase = TWO_WORD_UNITS.find(candidate => lower.startsWith(`${candidate} `) || (quantityOnly && lower === candidate));
+  if (phrase) {
+    unit = rest.slice(0, phrase.length);
+    name = rest.slice(phrase.length).trim();
+  } else {
+    const word = rest.split(/\s+/)[0];
+    if (word && UNIT_WORDS.has(word.toLowerCase()) && (quantityOnly || rest.length > word.length)) {
+      unit = word;
+      name = rest.slice(word.length).trim();
+    }
+  }
+  return { number, unit, name, quantity: [number, unit].filter(Boolean).join(' ') };
+}
+
+// Quantity text with the unit abbreviated like the rest of the UI: "2 pound" -> "2 lb".
+export function abbreviateQuantity(quantity) {
+  const { number, unit } = splitAmount(quantity, { quantityOnly: true });
+  if (!number) return String(quantity ?? '').trim();
+  const parsed = parseQuantityText(number);
+  const shownNumber = parsed === null ? number : formatNumber(parsed);
+  const shownUnit = unit ? (LONG_TO_SHORT[unit.toLowerCase()] || unit) : '';
+  return [shownNumber, shownUnit].filter(Boolean).join(' ');
+}
+
+// "2 pound cabbage" -> "2 lb cabbage". Text without a leading number is returned as is.
+export function abbreviateAmount(text) {
+  const { quantity, name } = splitAmount(text);
+  if (!quantity) return String(text ?? '').trim();
+  return [abbreviateQuantity(quantity), name].filter(Boolean).join(' ');
+}
+
+// The amount text sent to the server: "<quantity> <item name>". Empty when there is no quantity.
+// A quantity that already ends with the name ("2 lb cabbage") is not given the name twice.
+export function composeAmount(quantity, name) {
+  const qty = String(quantity ?? '').trim();
+  const item = String(name ?? '').trim();
+  if (!qty) return '';
+  if (!item || qty.toLowerCase().endsWith(` ${item.toLowerCase()}`)) return qty;
+  return `${qty} ${item}`;
+}
+
 // "Tuesday" -> "Tue"; anything else is returned as is.
 export function shortDayName(name) {
   const match = String(name || '').match(/^(mon|tue|wed|thu|fri|sat|sun)[a-z]*$/i);

@@ -1,6 +1,10 @@
 /* App shell. Phones: slim header + bottom tab bar. Wide screens (1024px+): side rail. */
-.app-shell {
+/* On :root, not .app-shell: the toast region renders outside the shell and needs it too. */
+:root {
   --nav-height: 64px;
+}
+
+.app-shell {
   min-height: 100vh;
   min-height: 100dvh;
   color: var(--ink);
