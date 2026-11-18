@@ -526,6 +526,58 @@
   overflow-wrap: anywhere;
 }
 
+/* Cooked portions and leftover reservations */
+/* Let card content shrink to the card (a grid item otherwise keeps its min-content width, which
+   overflowed the narrow desktop columns). */
+.planned-meal {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Wrap at spaces; only break inside a word when it cannot fit on a line at all. */
+.planned-meal__portions {
+  min-width: 0;
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.planned-meal__saved {
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+}
+
+.planned-meal__saved li {
+  min-width: 0;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.planned-meal.is-leftover .planned-meal__name {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.slot[data-slot] .planned-meal.is-leftover,
+.planned-meal.is-leftover {
+  background: var(--tint-oat);
+  border: 1px dashed var(--ink-muted);
+}
+
+.cook__summary {
+  margin: 0 0 var(--space-3);
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
 /* Move sheet */
 .move__meal {
   margin-bottom: var(--space-3);

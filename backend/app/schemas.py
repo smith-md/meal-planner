@@ -72,6 +72,9 @@ class WeekMealSchedule(BaseModel):
     status: str = "planned"
     cooked_servings: Optional[int] = None
     cooked_at: Optional[datetime] = None
+    eaten_servings: Optional[int] = None
+    remaining_servings: Optional[int] = None
+    reserved_servings: int = 0
     worth_repeating: Optional[bool] = None
 
     @field_validator("status", mode="before")
@@ -83,12 +86,27 @@ class WeekMealSchedule(BaseModel):
         from_attributes = True
 
 
+class LeftoverOut(BaseModel):
+    id: int
+    meal_id: int
+    meal_name: str
+    day_id: int
+    slot: str
+    portions: int
+    source_day_id: Optional[int] = None
+    source_slot: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class WeekPlan(WeekPlanBase):
     id: int
     days: List[Day] = []
     meals: List[Meal] = []
     meal_servings: List[WeekMealServings] = []
     meal_schedule: List[WeekMealSchedule] = []
+    leftovers: List[LeftoverOut] = []
 
     class Config:
         from_attributes = True
@@ -137,6 +155,41 @@ class WeekMealUpdate(BaseModel):
         return "date" in self.model_fields_set
 
 
+class CookRequest(BaseModel):
+    """Optional body for cooking: servings made (default planned) and eaten now (default made)."""
+    servings_made: Optional[int] = Field(None, ge=1, le=99)
+    servings_eaten: Optional[int] = Field(None, ge=0, le=99)
+
+
+class LeftoverCreate(BaseModel):
+    date: _Date
+    slot: Slot
+    portions: int = Field(1, ge=1, le=99)
+
+
+class LeftoverUpdate(BaseModel):
+    """Move (date and slot together) and/or resize a reservation."""
+    date: Optional[_Date] = None
+    slot: Optional[Slot] = None
+    portions: Optional[int] = Field(None, ge=1, le=99)
+
+    @model_validator(mode="after")
+    def _valid_change(self):
+        fields = self.model_fields_set
+        if not fields & {"date", "slot", "portions"}:
+            raise ValueError("Send a day and a meal slot, or portions.")
+        if "portions" in fields and self.portions is None:
+            raise ValueError("portions cannot be null")
+        if fields & {"date", "slot"}:
+            if not {"date", "slot"} <= fields or self.date is None or self.slot is None:
+                raise ValueError("Send both a day and a meal slot.")
+        return self
+
+    @property
+    def moves(self) -> bool:
+        return "date" in self.model_fields_set
+
+
 class WeekMealDayUpdate(BaseModel):
     day_id: Optional[int] = None
 
@@ -161,6 +214,10 @@ class CookResult(BaseModel):
     meal_id: int
     status: str
     cooked_servings: Optional[int] = None
+    servings_made: Optional[int] = None
+    servings_eaten: Optional[int] = None
+    servings_remaining: Optional[int] = None
+    servings_reserved: int = 0
     cooked_at: Optional[datetime] = None
     worth_repeating: Optional[bool] = None
     day_id: Optional[int] = None

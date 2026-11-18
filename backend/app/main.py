@@ -140,8 +140,27 @@ def set_week_meal_worth_repeating(week_plan_id: int, meal_id: int, data: schemas
 
 
 @app.post("/week-plans/{week_plan_id}/meals/{meal_id}/cook", response_model=schemas.CookResult)
-def cook_week_meal(week_plan_id: int, meal_id: int, db: Session = Depends(get_db)):
-    return inventory.cook_week_meal(db, week_plan_id, meal_id)
+def cook_week_meal(week_plan_id: int, meal_id: int, data: Optional[schemas.CookRequest] = None,
+                   db: Session = Depends(get_db)):
+    data = data or schemas.CookRequest()
+    return inventory.cook_week_meal(db, week_plan_id, meal_id, data.servings_made, data.servings_eaten)
+
+
+@app.post("/week-plans/{week_plan_id}/meals/{meal_id}/leftovers", response_model=schemas.WeekPlan)
+def reserve_leftover(week_plan_id: int, meal_id: int, data: schemas.LeftoverCreate,
+                     db: Session = Depends(get_db)):
+    return crud.reserve_leftover(db, week_plan_id, meal_id, data)
+
+
+@app.patch("/week-plans/{week_plan_id}/leftovers/{leftover_id}", response_model=schemas.WeekPlan)
+def update_leftover(week_plan_id: int, leftover_id: int, data: schemas.LeftoverUpdate,
+                    db: Session = Depends(get_db)):
+    return crud.update_leftover(db, week_plan_id, leftover_id, data)
+
+
+@app.delete("/week-plans/{week_plan_id}/leftovers/{leftover_id}", response_model=schemas.WeekPlan)
+def release_leftover(week_plan_id: int, leftover_id: int, db: Session = Depends(get_db)):
+    return crud.release_leftover(db, week_plan_id, leftover_id)
 
 
 @app.get("/week-plans/{week_plan_id}/shopping-list")

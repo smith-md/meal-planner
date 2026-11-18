@@ -98,12 +98,36 @@ export function setWeekMealWorthRepeating(weekPlanId, mealId, value) {
     { worth_repeating: value }, 'Could not save that feedback.');
 }
 
-export async function cookWeekMeal(weekPlanId, mealId) {
+// servingsMade is 1..99; servingsEaten is 0..servingsMade. Omitted values use the server defaults.
+export async function cookWeekMeal(weekPlanId, mealId, { servingsMade, servingsEaten } = {}) {
+  const body = {};
+  if (servingsMade != null) body.servings_made = servingsMade;
+  if (servingsEaten != null) body.servings_eaten = servingsEaten;
   const response = await fetch(`${API_BASE_URL}/week-plans/${weekPlanId}/meals/${mealId}/cook`, {
-    method: 'POST'
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
   });
   if (!response.ok) throw new Error(await failureMessage(response, 'Could not mark the meal cooked.'));
   return response.json();
+}
+
+// Leftover reservations: portions of a cooked meal saved for a later slot in the same week.
+// Each returns the updated week plan.
+export function reserveLeftover(weekPlanId, mealId, { date, slot, portions }) {
+  return request(`${API_BASE_URL}/week-plans/${weekPlanId}/meals/${mealId}/leftovers`,
+    jsonOptions('POST', { date, slot, portions }), 'Could not save the leftovers.');
+}
+
+// changes: { date, slot } to move and/or { portions } to resize.
+export function updateLeftover(weekPlanId, leftoverId, changes) {
+  return request(`${API_BASE_URL}/week-plans/${weekPlanId}/leftovers/${leftoverId}`,
+    jsonOptions('PATCH', changes), 'Could not change the leftovers.');
+}
+
+export function releaseLeftover(weekPlanId, leftoverId) {
+  return request(`${API_BASE_URL}/week-plans/${weekPlanId}/leftovers/${leftoverId}`,
+    { method: 'DELETE' }, 'Could not release the leftovers.');
 }
 
 export function setInventoryQuantity(itemId, quantity) {
