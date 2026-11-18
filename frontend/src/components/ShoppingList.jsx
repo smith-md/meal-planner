@@ -21,7 +21,7 @@ import { EmptyState, ErrorState, Skeleton } from './ui/States.jsx';
 import StatusPill from './ui/StatusPill.jsx';
 import { useToast } from './ui/Toast.jsx';
 import PutAwayPanel from './PutAwayPanel.jsx';
-import { QUANTITY_ERROR, abbreviateAmount, abbreviateQuantity, checkQuantityText, composeAmount, splitAmount } from '../utils/format';
+import { QUANTITY_ERROR, abbreviateAmount, abbreviateQuantity, checkQuantityText, composeAmount, shortDayName, splitAmount } from '../utils/format';
 import { AlertIcon, CheckIcon, CloseIcon, PlusIcon } from './ui/icons.jsx';
 import './ShoppingList.css';
 
@@ -64,14 +64,39 @@ const PLACE_LABELS = { fridge: 'Fridge', pantry: 'Pantry' };
 const KEPT_KEY = 'shopping.keptOnList';
 
 // Items marked "Keep on list" stay checked but are not stock. The server has no flag for that,
-// so the ids are remembered for this browser session.
+// so the ids are remembered in this browser (localStorage) and pruned once they no longer apply.
 function readKept() {
   try {
-    const saved = JSON.parse(sessionStorage.getItem(KEPT_KEY) || '[]');
+    const saved = JSON.parse(localStorage.getItem(KEPT_KEY) || '[]');
     return new Set(Array.isArray(saved) ? saved : []);
   } catch (err) {
     return new Set();
   }
+}
+
+function writeKept(ids) {
+  try {
+    localStorage.setItem(KEPT_KEY, JSON.stringify([...ids]));
+  } catch (err) {
+    // Storage can be unavailable; the choice then lasts until reload.
+  }
+}
+
+// The planned meals behind a bought entry, from the selected week's reconcile data. Matched like the
+// server does (item + unit group), within the entry's own week. Manual, legacy and restock lines have
+// no such match and give an empty list.
+function mealsForEntry(entry, data, weekId) {
+  if (!data || !entry.item || !entry.unit_group || entry.kind === 'restock') return [];
+  if (weekId == null || entry.week_plan_id !== weekId) return [];
+  const line = data.ingredients.find(row => row.item === entry.item && row.unit_group === entry.unit_group);
+  return line && Array.isArray(line.meals) ? line.meals : [];
+}
+
+function putAwayMealText(meals) {
+  if (meals.length === 0) return '';
+  if (meals.length > 1) return `for ${meals.length} meals`;
+  const [meal] = meals;
+  return `for ${meal.name}${meal.day ? ` (${shortDayName(meal.day)})` : ''}`;
 }
 
 function addDays(iso, days) {
@@ -461,14 +486,23 @@ function ShoppingList({ onOpenPlanner }) {
     setKept(current => {
       const next = new Set(current);
       if (isKept) next.add(id); else next.delete(id);
-      try {
-        sessionStorage.setItem(KEPT_KEY, JSON.stringify([...next]));
-      } catch (err) {
-        // Session storage can be unavailable; the choice then lasts until reload.
-      }
+      writeKept(next);
       return next;
     });
   };
+
+  // Drop kept ids whose entry is gone, un-bought or already credited, so stale ids neither pile up
+  // nor hide a different entry. Only once the list has loaded, so an empty list never wipes them.
+  useEffect(() => {
+    if (listState !== 'ready') return;
+    const live = new Set(entries.filter(entry => entry.purchased && !entry.credit).map(entry => entry.id));
+    setKept(current => {
+      if ([...current].every(id => live.has(id))) return current;
+      const next = new Set([...current].filter(id => live.has(id)));
+      writeKept(next);
+      return next;
+    });
+  }, [entries, listState]);
 
   const addItem = async () => {
     const name = newItem.trim();
@@ -1235,6 +1269,7 @@ function ShoppingList({ onOpenPlanner }) {
               <PutAwayPanel
                 id="put-away-panel"
                 items={pending}
+                mealTextFor={(entry) => putAwayMealText(mealsForEntry(entry, recon.data, selectedWeek && selectedWeek.id))}
                 defaultsFor={(entry) => ({
                   ...amountParts(entry),
                   dest: knownLocation(entry) || lastLocation(entry) || ''
