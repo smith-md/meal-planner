@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import Button from './Button.jsx'
 import { CloseIcon } from './icons.jsx'
+import UndoHint from './UndoHint.jsx'
+import { UNDO_ARIA_KEYSHORTCUTS, useUndoShortcut } from './useUndoShortcut.js'
 import './Toast.css'
 
 export const TOAST_DURATION_MS = 6000
@@ -30,6 +32,12 @@ export function Toast({ message, actionLabel, onAction, onDismiss, duration }) {
     }
   }, [paused])
 
+  const runAction = () => {
+    onAction?.()
+    onDismiss?.({ restoreFocus: true })
+  }
+  useUndoShortcut(Boolean(actionLabel), runAction)
+
   return (
     <div
       className="ui-toast"
@@ -45,12 +53,11 @@ export function Toast({ message, actionLabel, onAction, onDismiss, duration }) {
         <Button
           variant="quiet"
           className="ui-toast__action"
-          onClick={() => {
-            onAction?.()
-            onDismiss?.({ restoreFocus: true })
-          }}
+          aria-keyshortcuts={UNDO_ARIA_KEYSHORTCUTS}
+          onClick={runAction}
         >
           {actionLabel}
+          <UndoHint />
         </Button>
       )}
       <Button variant="icon" className="ui-toast__close" aria-label="Dismiss" onClick={() => onDismiss?.({ restoreFocus: true })}>
