@@ -88,7 +88,7 @@ function ReviewChanges({ changes, weekLabel, busy, error, nothingChanged, locked
         aria-labelledby="review-title"
         onKeyDown={handleKeyDown}
       >
-        <h3 id="review-title" tabIndex={-1} ref={titleRef}>Review changes for {weekLabel}</h3>
+        <h2 id="review-title" tabIndex={-1} ref={titleRef}>Review changes for {weekLabel}</h2>
         <div className="review-body">
           {error && (
             <p className="review-error" role="alert">
@@ -102,7 +102,7 @@ function ReviewChanges({ changes, weekLabel, busy, error, nothingChanged, locked
               <p className="review-note">Items you added yourself and items you have bought are never changed.</p>
               {changes.add.length > 0 && (
                 <div className="review-group">
-                  <h4>Add ({changes.add.length})</h4>
+                  <h3>Add ({changes.add.length})</h3>
                   <ul>
                     {changes.add.map(change => (
                       <li key={change.entry_key}>
@@ -116,7 +116,7 @@ function ReviewChanges({ changes, weekLabel, busy, error, nothingChanged, locked
               )}
               {changes.update.length > 0 && (
                 <div className="review-group">
-                  <h4>Update ({changes.update.length})</h4>
+                  <h3>Update ({changes.update.length})</h3>
                   <ul>
                     {changes.update.map(change => (
                       <li key={change.entry_key}>
@@ -135,7 +135,7 @@ function ReviewChanges({ changes, weekLabel, busy, error, nothingChanged, locked
               )}
               {changes.remove.length > 0 && (
                 <div className="review-group">
-                  <h4>Remove ({changes.remove.length})</h4>
+                  <h3>Remove ({changes.remove.length})</h3>
                   <ul>
                     {changes.remove.map(change => (
                       <li key={change.entry_key}>

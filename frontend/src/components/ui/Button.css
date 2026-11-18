@@ -14,7 +14,7 @@
   font-weight: 600;
   line-height: 1.2;
   cursor: pointer;
-  transition: opacity 120ms ease-out, transform 120ms ease-out;
+  transition: opacity var(--dur-hover) ease-out, transform var(--dur-hover) ease-out;
 }
 
 .ui-button__content {

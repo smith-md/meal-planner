@@ -35,7 +35,7 @@ function MealCard({ meal, onEdit }) {
 
   return (
     <li className="meals-card">
-      <h3 className="meals-card__name">{meal.name}</h3>
+      <h2 className="meals-card__name">{meal.name}</h2>
       {tags.length > 0 && (
         <ul className="meals-card__tags" aria-label="Tags">
           {tags.map((t) => (
@@ -135,9 +135,8 @@ function MealsLibrary() {
   const timeFilterActive = filters.maxPrep !== '' || filters.maxCook !== '';
 
   return (
-    <section className="meals" aria-labelledby="meals-title">
+    <section className="meals" aria-labelledby="page-title">
       <header className="meals-header">
-        <h2 id="meals-title" className="meals-header__title">Meals</h2>
         <Button
           ref={newButtonRef}
           variant="primary"

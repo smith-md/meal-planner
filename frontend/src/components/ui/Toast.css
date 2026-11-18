@@ -23,7 +23,7 @@
   background: var(--surface);
   color: var(--ink);
   box-shadow: var(--shadow-float);
-  animation: ui-toast-in 180ms ease-out;
+  animation: ui-toast-in var(--dur-in) ease-out;
 }
 
 .ui-toast__message {

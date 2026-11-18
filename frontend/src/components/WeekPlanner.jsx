@@ -8,7 +8,7 @@ import MealDrawer from './MealDrawer';
 import MealPairings from './MealPairings';
 import StockSuggestions from './StockSuggestions';
 import Sheet from './Sheet';
-import { Button, Select, StatusPill } from './ui';
+import { Button, EmptyState, ErrorState, Select, Skeleton, StatusPill } from './ui';
 import './WeekPlanner.css';
 
 const SLOTS = [
@@ -181,9 +181,9 @@ function PlannedMealCard({
         </Button>
       </div>
       {message && <p role="alert" className="cook-message">{message}</p>}
-      <a className="planned-meal__link" href="#pairing-heading" onClick={onPairing}>
+      <Button variant="quiet" className="planned-meal__link" onClick={onPairing}>
         Find a meal for leftover ingredients
-      </a>
+      </Button>
     </li>
   );
 }
@@ -370,6 +370,12 @@ function WeekPlanner() {
   const [newMealDraft, setNewMealDraft] = useState(null);
   const [error, setError] = useState('');
   const [pairingSource, setPairingSource] = useState('');
+  // Lifted here so the panel stays open when MealPairings remounts for another week.
+  const [pairingOpen, setPairingOpen] = useState(false);
+  const [pairingFocus, setPairingFocus] = useState(0);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState(null); // { detail }
   const [messages, setMessages] = useState({});
   const pickerOpener = useRef(null);
   const addMealButtonRef = useRef(null);
@@ -380,14 +386,20 @@ function WeekPlanner() {
   const [dragMealId, setDragMealId] = useState(null);
   const [dropKey, setDropKey] = useState(null);
 
-  useEffect(() => {
+  const loadInitial = () => {
+    setLoadFailed(false);
     getCurrentWeekPlan()
       .then(plan => {
         setWeekPlan(plan);
         setSelectedDayId(defaultDayId(plan));
       })
-      .catch(() => setError('Could not load the week plan.'));
+      .catch(() => setLoadFailed(true));
     loadMeals();
+  };
+
+  useEffect(() => {
+    loadInitial();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // After a move the opener unmounts (the card lands in another row), so put focus on the
@@ -421,7 +433,8 @@ function WeekPlanner() {
 
   const afterActionTargets = schedule => [
     ...(schedule.day_id != null ? [`[data-add="${schedule.day_id}-${schedule.slot}"]`, `#day-${schedule.day_id}`] : []),
-    '#unplaced-heading'
+    '#unplaced-heading',
+    '#planner-add-meal' // the unplaced section is not rendered for an empty week
   ];
 
   const loadMeals = async () => {
@@ -542,8 +555,11 @@ function WeekPlanner() {
     }
   };
 
+  // While the other week loads the button is disabled and the current week stays on screen.
   const switchWeek = async () => {
     setError('');
+    setSwitchError(null);
+    setSwitching(true);
     try {
       const current = await getCurrentWeekPlan();
       const plan = nextWeek ? current : await getCurrentWeekPlan(nextWeekStart(current));
@@ -553,7 +569,9 @@ function WeekPlanner() {
       setSelectedDayId(defaultDayId(plan));
       setNextWeek(!nextWeek);
     } catch (err) {
-      setError(err.message);
+      setSwitchError({ detail: err.message });
+    } finally {
+      setSwitching(false);
     }
   };
 
@@ -563,7 +581,13 @@ function WeekPlanner() {
   };
 
   if (!weekPlan) {
-    return <div className="week-planner" role={error ? 'alert' : 'status'}>{error || 'Loading...'}</div>;
+    return (
+      <div className="week-planner">
+        {loadFailed
+          ? <ErrorState message="Could not load your week plan." retryLabel="Retry" onRetry={loadInitial} />
+          : <Skeleton rows={4} label="Loading your week" />}
+      </div>
+    );
   }
 
   const servingsFor = meal => {
@@ -623,10 +647,12 @@ function WeekPlanner() {
           setDragMealId(mealId);
         }}
         onDragEnd={endDrag}
-        onPairing={event => {
-          event.preventDefault();
+        onPairing={() => {
+          // The panel body only exists once expanded, so MealPairings scrolls to it and focuses
+          // the amount field after it renders (see focusRequest).
           setPairingSource(String(mealId));
-          document.getElementById('pairing-heading')?.focus();
+          setPairingOpen(true);
+          setPairingFocus(count => count + 1);
         }}
       />
     );
@@ -643,22 +669,35 @@ function WeekPlanner() {
           <h2>{nextWeek ? 'Next week' : 'This week'}</h2>
           <p className="planner__range">{monthDay(weekPlan.start_date)} – {monthDay(weekPlan.end_date)}</p>
         </div>
-        <Button variant="secondary" onClick={switchWeek}>
+        <Button
+          variant="secondary"
+          onClick={switchWeek}
+          loading={switching}
+          aria-label={switching ? `Loading ${nextWeek ? 'this' : 'next'} week` : undefined}
+        >
           {nextWeek ? 'See this week' : 'See next week'}
         </Button>
       </header>
 
       {error && <p className="planner__error" role="alert">{error}</p>}
+      {switchError && (
+        <div className="planner__error planner__error--retry" role="alert">
+          <span>Could not load {nextWeek ? 'this' : 'next'} week. {switchError.detail}</span>
+          <Button variant="secondary" onClick={switchWeek}>Retry</Button>
+        </div>
+      )}
 
       <div className="planner__summary">
         <p role="status">
           {plannedOnDays} of {totalSlots} slots planned
-          <span className="planner__count"> · {plural(entries.length, 'meal')} in the week</span>
+          {entries.length > 0 && (
+            <span className="planner__count"> · {plural(entries.length, 'meal')} in the week</span>
+          )}
           {hiddenMeals > 0 && (
             <span className="planner__count"> · {plural(hiddenMeals, 'meal')} in hidden slots</span>
           )}
         </p>
-        <Button ref={addMealButtonRef} className="planner__add"
+        <Button ref={addMealButtonRef} id="planner-add-meal" className="planner__add"
           onClick={event => openPicker({}, event.currentTarget)}>
           + Add meal to week
         </Button>
@@ -679,6 +718,10 @@ function WeekPlanner() {
       </fieldset>
       {visibleSlots.length === 0 && (
         <p className="slot-toggle__empty" role="status">All meal slots are hidden. Show one above to plan meals.</p>
+      )}
+
+      {entries.length === 0 && (
+        <EmptyState message="No meals planned for this week yet. Tap a slot below, or use Add meal to week." />
       )}
 
       <DayStrip days={weekPlan.days} selectedId={selectedDayId} today={today}
@@ -708,12 +751,14 @@ function WeekPlanner() {
         ))}
       </div>
 
-      <section className="unplaced" aria-labelledby="unplaced-heading">
-        <h3 id="unplaced-heading" tabIndex={-1}>Planned, not on a day yet</h3>
-        {unplaced.length > 0
-          ? <ul>{unplaced.map(renderCard)}</ul>
-          : <p className="unplaced__empty">Every planned meal is on a day.</p>}
-      </section>
+      {entries.length > 0 && (
+        <section className="unplaced" aria-labelledby="unplaced-heading">
+          <h3 id="unplaced-heading" tabIndex={-1}>Planned, not on a day yet</h3>
+          {unplaced.length > 0
+            ? <ul>{unplaced.map(renderCard)}</ul>
+            : <p className="unplaced__empty">Every planned meal is on a day.</p>}
+        </section>
+      )}
 
       {picker && (
         <MealPickerModal
@@ -755,7 +800,8 @@ function WeekPlanner() {
       }} />
 
       <MealPairings key={weekPlan.id} week={weekPlan} selectedSource={pairingSource}
-        onSelectSource={setPairingSource} nextWeek={nextWeek} onAddMeal={async (mealId, next) => {
+        onSelectSource={setPairingSource} nextWeek={nextWeek}
+        open={pairingOpen} onOpenChange={setPairingOpen} focusRequest={pairingFocus} onAddMeal={async (mealId, next) => {
         const target = next ? await getCurrentWeekPlan(nextWeekStart(weekPlan)) : weekPlan;
         const updated = await addMealToWeek(target.id, mealId);
         if (!next) setWeekPlan(updated);

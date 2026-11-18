@@ -39,6 +39,11 @@
   --shadow-card: 0 1px 2px #2d48350d;
   --shadow-float: 0 16px 48px #2d483533;
 
+  --dur-hover: 120ms;
+  --dur-in: 180ms;
+  --dur-out: 140ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+
   --font-body: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-heading: "Manrope", "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }

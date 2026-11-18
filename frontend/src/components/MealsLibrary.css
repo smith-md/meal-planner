@@ -26,15 +26,8 @@
 .meals-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: var(--space-3);
-}
-
-.meals-header__title {
-  margin: 0;
-  font-family: var(--font-heading);
-  font-size: 24px;
-  color: var(--ink);
 }
 
 .meals-error {
