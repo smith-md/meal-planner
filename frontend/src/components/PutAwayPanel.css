@@ -1,0 +1,258 @@
+/* Put away groceries: inline expanding region. Tokens only. */
+
+.put-away {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  animation: put-away-in var(--dur-in) ease-out;
+}
+
+.put-away__heading {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink);
+  /* Keep the focused heading clear of the bottom tab bar when it is scrolled into view. */
+  scroll-margin-top: var(--space-4);
+  scroll-margin-bottom: calc(var(--nav-height) + var(--space-6));
+}
+
+.put-away__summary:focus {
+  outline: none;
+}
+
+.put-away__input {
+  scroll-margin-bottom: calc(var(--nav-height) + var(--space-6));
+}
+
+.put-away__heading:focus {
+  outline: none;
+}
+
+.put-away__heading:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.put-away__hint {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+
+.put-away__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.put-away__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.put-away__name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.put-away__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.put-away__label {
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.put-away__input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--ink-muted);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+}
+
+.put-away__input:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.put-away__input:disabled {
+  background: var(--surface-sunk);
+  color: var(--ink-muted);
+}
+
+.put-away__input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.put-away__place {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.put-away__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--surface-sunk);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+}
+
+.put-away__choice {
+  position: relative;
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-xl);
+  color: var(--ink-muted);
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.put-away__choice input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.put-away__choice:has(input:checked) {
+  background: var(--green);
+  color: var(--surface);
+  font-weight: 800;
+}
+
+.put-away__choice:has(input:focus-visible) {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.put-away__pick {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.put-away__error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.put-away__error svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.put-away__summary {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.put-away__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Trigger bar: last in the list (DOM order equals visual order), sticky at the bottom. Above the
+   bottom tab bar below 1024px; the side rail from 1024px leaves the bottom free. While the panel is
+   open the bar stops being sticky, so it cannot cover the panel heading or duplicate the trigger. */
+.put-away-bar {
+  position: sticky;
+  bottom: calc(var(--nav-height) + var(--space-2) + env(safe-area-inset-bottom, 0px));
+  z-index: 20;
+  display: flex;
+  justify-content: stretch;
+  margin-top: var(--space-3);
+  padding: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+}
+
+.put-away-bar > button {
+  flex: 1;
+  white-space: normal;
+}
+
+.put-away-bar--open {
+  position: static;
+  box-shadow: none;
+}
+
+@media (min-width: 1024px) {
+  .put-away-bar {
+    bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@keyframes put-away-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .put-away {
+    animation: none;
+  }
+}

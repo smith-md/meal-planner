@@ -1,0 +1,223 @@
+/* Kitchen page. Tokens only (styles/tokens.css); shared controls come from components/ui. */
+
+.kitchen-page {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: var(--space-2) 0;
+  color: var(--ink);
+  font-family: var(--font-body);
+  overflow-wrap: anywhere;
+}
+
+.kitchen-page__tabs {
+  width: 100%;
+  margin-bottom: var(--space-4);
+}
+
+.kitchen-page__notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.kitchen-page__group {
+  margin-bottom: var(--space-5);
+}
+
+.kitchen-page__heading {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.kitchen-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kitchen-row {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.kitchen-row__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.kitchen-row__name {
+  flex: 1 1 10rem;
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.kitchen-row__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.kitchen-row__pills:empty {
+  display: none;
+}
+
+.kitchen-row__meta,
+.kitchen-row__reserved {
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink-muted);
+}
+
+.kitchen-row__reserved {
+  color: var(--ink);
+}
+
+.kitchen-row__error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.kitchen-row__adjust {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.kitchen-row__adjust > button {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.kitchen-row__panel[hidden] {
+  display: none;
+}
+
+.kitchen-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.kitchen-row__actions button {
+  min-height: 44px;
+}
+
+.kitchen-row__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.kitchen-use {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.kitchen-use__label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.kitchen-use__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.kitchen-use__input {
+  box-sizing: border-box;
+  min-height: 44px;
+  width: 7rem;
+  max-width: 100%;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--ink-muted);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+}
+
+.kitchen-use__input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.kitchen-use__input:focus-visible,
+.kitchen-row__adjust button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.kitchen-use__unit {
+  color: var(--ink-muted);
+  font-size: 15px;
+}
+
+@media (min-width: 768px) {
+  .kitchen-page__tabs {
+    width: auto;
+    min-width: 18rem;
+  }
+
+  .kitchen-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--space-4);
+    align-items: start;
+  }
+
+  .kitchen-row > * {
+    grid-column: 1;
+  }
+
+  .kitchen-row__adjust {
+    grid-column: 2;
+    grid-row: 1 / span 4;
+    align-items: flex-end;
+  }
+
+  .kitchen-row__head {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+  }
+
+  .kitchen-row__head .kitchen-row__name {
+    flex: 0 1 auto;
+  }
+}

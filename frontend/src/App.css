@@ -1,6 +1,24 @@
 /* App shell. Phones: slim header + bottom tab bar. Wide screens (1024px+): side rail. */
-.app-shell {
+/* On :root, not .app-shell: the toast region renders outside the shell and needs it too. */
+:root {
   --nav-height: 64px;
+  /* Room for the sticky Put away bar so keyboard focus is not hidden behind it (WCAG 2.4.11). */
+  --sticky-bar-room: 6rem;
+}
+
+/* Phones: the fixed bottom tab bar and the sticky put-away bar can cover focused controls. */
+html {
+  scroll-padding-bottom: calc(var(--nav-height) + var(--sticky-bar-room) + env(safe-area-inset-bottom, 0px));
+}
+
+/* Side rail from 1024px: only the sticky bar needs room. */
+@media (min-width: 1024px) {
+  html {
+    scroll-padding-bottom: calc(var(--sticky-bar-room) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+.app-shell {
   min-height: 100vh;
   min-height: 100dvh;
   color: var(--ink);
@@ -74,7 +92,7 @@
   bottom: 0;
   z-index: 900;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   padding-bottom: env(safe-area-inset-bottom);
   background: var(--surface);
   border-top: 1px solid var(--line);
@@ -96,7 +114,56 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Badge and dot are decorative (aria-hidden) and absolutely positioned, so they never shift layout.
+   The spoken status is the visually hidden .app-nav__hint inside the label. */
+.app-nav__label {
+  position: relative;
+}
+
+.app-nav__hint {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.app-nav__badge {
+  position: absolute;
+  top: -4px;
+  right: 6px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 var(--space-1);
+  box-sizing: border-box;
+  border-radius: 10px;
+  background: var(--danger);
+  color: var(--surface);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  line-height: 20px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.app-nav__dot {
+  position: absolute;
+  top: 0;
+  right: 14px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--warn);
+  box-shadow: 0 0 0 2px var(--surface);
+  pointer-events: none;
+}
+
 .app-nav__icon {
+  position: relative;
   display: grid;
   place-items: center;
   width: 56px;
@@ -141,6 +208,17 @@
   .app-nav__icon {
     width: 32px;
     background: transparent;
+  }
+
+  /* Row layout: the icon is 32px wide, so tuck badge and dot against its top-right corner. */
+  .app-nav__badge {
+    top: -6px;
+    right: -8px;
+  }
+
+  .app-nav__dot {
+    top: -2px;
+    right: -2px;
   }
 
   .app-nav__item[aria-current='page'] .app-nav__icon {

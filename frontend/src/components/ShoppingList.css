@@ -18,6 +18,35 @@
   padding-bottom: calc(var(--space-7) + var(--space-6));
 }
 
+/* Room for the sticky Put away bar above the bottom tab bar, so it never covers the last row. */
+.shopping-list--has-put-away {
+  padding-bottom: calc(var(--space-7) + var(--space-5));
+}
+
+.shopping-list--has-undo.shopping-list--has-put-away {
+  padding-bottom: calc(var(--space-7) + var(--space-6) + var(--space-5));
+}
+
+.shopping-list__credit--plain {
+  color: var(--ink-muted);
+}
+
+.shopping-list__put-status {
+  margin: 0 0 var(--space-2);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.shopping-list__summary:focus {
+  outline: none;
+}
+
+.shopping-list__summary:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
 .shopping-list__section-title {
   margin: var(--space-5) 0 var(--space-3);
   font-family: var(--font-heading);
@@ -453,6 +482,15 @@
   text-decoration: line-through;
 }
 
+/* Bought rows can carry Edit and Undo buttons: let them wrap under the name on narrow screens. */
+.shopping-list__item--bought {
+  flex-wrap: wrap;
+}
+
+.shopping-list__item--bought .shopping-list__name {
+  flex: 1 1 9rem;
+}
+
 .shopping-list__item--bought .shopping-list__credit,
 .shopping-list__item--bought .shopping-list__tag {
   text-decoration: none;
@@ -692,7 +730,13 @@
 
 @media (min-width: 768px) {
   .shopping-list {
+    display: flex;
+    flex-direction: column;
     padding: var(--space-5);
+  }
+
+  .shopping-list--has-put-away {
+    padding-bottom: var(--space-5);
   }
 
   .shopping-list__review-bar {

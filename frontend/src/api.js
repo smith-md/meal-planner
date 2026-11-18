@@ -72,9 +72,9 @@ export async function updateWeekMealServings(weekPlanId, mealId, servings) {
   return response.json();
 }
 
-async function putJson(url, body, fallback) {
+async function putJson(url, body, fallback, method = 'PUT') {
   const response = await fetch(url, {
-    method: 'PUT',
+    method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
@@ -102,6 +102,16 @@ export async function cookWeekMeal(weekPlanId, mealId) {
 
 export function setInventoryQuantity(itemId, quantity) {
   return putJson(`${API_BASE_URL}/inventory/${itemId}`, { quantity }, 'Enter a quantity like 2 or 1/2.');
+}
+
+// Take some stock out ("use some"). amount is text like "1/2 cup"; resolves { item, removed }.
+export function consumeInventory(itemId, amount) {
+  return putJson(`${API_BASE_URL}/inventory/${itemId}/use`, { amount }, 'Enter an amount like 2 or 1/2.', 'POST');
+}
+
+// Put some stock back (undo of use some). Resolves { item, added }.
+export function returnInventory(itemId, amount) {
+  return putJson(`${API_BASE_URL}/inventory/${itemId}/return`, { amount }, 'Could not put that back.', 'POST');
 }
 
 export async function updateMealYield(mealId, yieldServings) {

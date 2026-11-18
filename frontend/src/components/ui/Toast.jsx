@@ -4,12 +4,15 @@ import { CloseIcon } from './icons.jsx'
 import './Toast.css'
 
 export const TOAST_DURATION_MS = 6000
+// Toasts that carry an action (Undo) stay longer, so keyboard users can reach the button.
+export const ACTION_TOAST_DURATION_MS = 12000
 
 const ToastContext = createContext(null)
 
 // Single toast at a time: showing a new one replaces the current one.
 // Timer pauses while the pointer is over the toast or focus is inside it.
-export function Toast({ message, actionLabel, onAction, onDismiss, duration = TOAST_DURATION_MS }) {
+export function Toast({ message, actionLabel, onAction, onDismiss, duration }) {
+  if (duration === undefined) duration = actionLabel ? ACTION_TOAST_DURATION_MS : TOAST_DURATION_MS
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
   const paused = hovered || focused

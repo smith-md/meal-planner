@@ -1,0 +1,72 @@
+.ui-inline-editable {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  max-width: 100%;
+}
+
+.ui-inline-editable__value {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-bottom: 1px dashed var(--ink-muted);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 700;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.ui-inline-editable__value:hover:not(:disabled) {
+  background: var(--surface-sunk);
+}
+
+.ui-inline-editable__value:focus-visible,
+.ui-inline-editable__input:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.ui-inline-editable__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.ui-inline-editable__input {
+  box-sizing: border-box;
+  min-height: 44px;
+  width: 9rem;
+  max-width: 100%;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--ink-muted);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+}
+
+.ui-inline-editable__input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.ui-inline-editable__error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ui-inline-editable__error svg {
+  flex-shrink: 0;
+}

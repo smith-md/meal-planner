@@ -26,7 +26,14 @@ def serialize_item(row):
         "unit": unit,
         "quantity": ingredient.display_quantity(row.base_quantity),
         "location": row.location,
+        "unit_group": row.unit_group,
+        "added_at": _iso(row.added_at),
     }
+
+
+def _iso(moment):
+    """ISO string of a stored (naive UTC) time, or None."""
+    return moment.replace(tzinfo=timezone.utc).isoformat() if moment else None
 
 
 def serialize_purchase(purchase, replayed):
@@ -67,14 +74,17 @@ def credit_purchase(db: Session, purchase_id, amount, location):
                 )
                 db.add(row)
                 db.flush()
+            credited_at = datetime.now(timezone.utc).replace(tzinfo=None)
             db.execute(
                 update(models.InventoryItem)
                 .where(models.InventoryItem.id == row.id)
-                .values(base_quantity=models.InventoryItem.base_quantity + ingredient.base_quantity)
+                .values(base_quantity=models.InventoryItem.base_quantity + ingredient.base_quantity,
+                        added_at=credited_at)
             )
             purchase = models.InventoryPurchase(
                 purchase_id=purchase_id, inventory_item_id=row.id,
                 amount=amount.strip(), base_quantity=ingredient.base_quantity,
+                created_at=credited_at,
             )
             db.add(purchase)
             db.commit()
@@ -153,7 +163,22 @@ def set_quantity(db: Session, item_id, quantity):
     return row
 
 
-def serialize_staple(row):
+def low_keys(db: Session):
+    """(item, unit_group) keys of tracked staples at or below their minimum.
+
+    Fridge and pantry rows are one pool and the highest minimum applies, as in reconcile.
+    """
+    stock = defaultdict(float)
+    minimums = {}
+    for row in db.query(models.InventoryItem).all():
+        key = (row.item, row.unit_group)
+        stock[key] += max(row.base_quantity, 0.0)
+        if row.minimum is not None:
+            minimums[key] = max(minimums.get(key, 0.0), row.minimum)
+    return {key for key, minimum in minimums.items() if stock[key] <= minimum + pairings.EPSILON}
+
+
+def serialize_staple(row, low=False):
     ingredient = pairings.Ingredient(0, row.unit, row.item)
     unit = "" if row.unit == "piece" else row.unit
     return {
@@ -163,7 +188,13 @@ def serialize_staple(row):
         "location": row.location,
         "quantity": _display(ingredient, max(row.base_quantity, 0.0)),
         "minimum": _display(ingredient, row.minimum) if row.minimum is not None else None,
+        "low": low,
     }
+
+
+def serialize_staples(db: Session, rows):
+    low = low_keys(db)
+    return [serialize_staple(row, (row.item, row.unit_group) in low) for row in rows]
 
 
 def set_minimum(db: Session, item_id, minimum):
@@ -302,6 +333,132 @@ def _planned_rows(db: Session, today):
     )
 
 
+def _reservations(db: Session, today):
+    """What planned meals reserve per (item, unit_group).
+
+    Returns (first, entries): the first Ingredient seen per key and, per key in meal order, the
+    reserving meals as dicts with a base-unit amount.
+    """
+    first_seen = {}
+    entries = defaultdict(list)
+    day_names = {}
+    for week_meal in _planned_rows(db, today):
+        if week_meal.day_id is not None and week_meal.day_id not in day_names:
+            day = db.get(models.Day, week_meal.day_id)
+            day_names[week_meal.day_id] = day.day_name if day else None
+        totals, first, _, _ = pairings.meal_lines(week_meal.meal, week_meal.servings)
+        for key, amount in totals.items():
+            if amount <= pairings.EPSILON:
+                continue
+            first_seen.setdefault(key, first[key])
+            entries[key].append({
+                "week_plan_id": week_meal.week_plan_id,
+                "meal_id": week_meal.meal_id,
+                "name": week_meal.meal.name,
+                "day": day_names.get(week_meal.day_id),
+                "base": amount,
+            })
+    return first_seen, entries
+
+
+def _allocate_reservations(db: Session, today):
+    """Split each ingredient's reservations over its stock rows, fridge first then pantry.
+
+    Same row order cook_week_meal deducts in. Returns {row id: [(entry, base amount)]}; a
+    reservation beyond what is on hand is not assigned to any row (that is a shortage).
+    """
+    _, entries = _reservations(db, today)
+    rows_by_key = defaultdict(list)
+    for row in db.query(models.InventoryItem).all():
+        rows_by_key[(row.item, row.unit_group)].append(row)
+    allocation = defaultdict(list)
+    for key, key_entries in entries.items():
+        rows = sorted(rows_by_key.get(key, []), key=lambda r: (0 if r.location == "fridge" else 1, r.id))
+        free = [max(row.base_quantity, 0.0) for row in rows]
+        for entry in key_entries:
+            remaining = entry["base"]
+            for index, row in enumerate(rows):
+                take = min(free[index], remaining)
+                if take <= pairings.EPSILON:
+                    continue
+                free[index] -= take
+                remaining -= take
+                allocation[row.id].append((entry, take))
+                if remaining <= pairings.EPSILON:
+                    break
+    return allocation
+
+
+def serialize_rows(db: Session, rows, today=None):
+    """Stock rows with the low flag and per-row reservations (see _allocate_reservations)."""
+    today = today or date.today()
+    low = low_keys(db)
+    allocation = _allocate_reservations(db, today)
+    result = []
+    for row in rows:
+        ingredient = pairings.Ingredient(0, row.unit, row.item)
+        portions = allocation.get(row.id, [])
+        result.append({
+            **serialize_item(row),
+            "low": (row.item, row.unit_group) in low,
+            "reserved": _display(ingredient, sum(take for _, take in portions)),
+            "reserved_by": [
+                {"meal_id": entry["meal_id"], "name": entry["name"], "day": entry["day"],
+                 "amount": _display(ingredient, take)}
+                for entry, take in portions
+            ],
+        })
+    return result
+
+
+def _positive_base(row, amount):
+    base = parse_quantity(amount, row)
+    if base <= pairings.EPSILON:
+        raise HTTPException(400, "Enter an amount greater than 0, like 1, 1/2 or 1 1/2.")
+    return base
+
+
+def use_stock(db: Session, item_id, amount):
+    """Remove an amount from a stock row, never below zero. Returns (row, base amount removed)."""
+    row = db.get(models.InventoryItem, item_id)
+    if not row:
+        raise HTTPException(404, "Inventory item not found")
+    wanted = _positive_base(row, amount)
+    removed = min(max(row.base_quantity, 0.0), wanted)
+    db.execute(
+        update(models.InventoryItem)
+        .where(models.InventoryItem.id == row.id)
+        .values(base_quantity=models.InventoryItem.base_quantity - removed)
+    )
+    db.flush()
+    db.refresh(row)
+    if row.base_quantity < pairings.EPSILON:
+        row.base_quantity = 0.0
+    db.commit()
+    db.refresh(row)
+    return row, removed
+
+
+def return_stock(db: Session, item_id, amount):
+    """Add an amount back to a stock row (the undo of use_stock). Returns (row, base amount added)."""
+    row = db.get(models.InventoryItem, item_id)
+    if not row:
+        raise HTTPException(404, "Inventory item not found")
+    added = _positive_base(row, amount)
+    db.execute(
+        update(models.InventoryItem)
+        .where(models.InventoryItem.id == row.id)
+        .values(base_quantity=models.InventoryItem.base_quantity + added)
+    )
+    db.commit()
+    db.refresh(row)
+    return row, added
+
+
+def stock_amount_text(row, base):
+    return _display(pairings.Ingredient(0, row.unit, row.item), base)
+
+
 def availability(db: Session, today=None):
     """Per ingredient: stock on hand (fridge + pantry), what planned meals reserve, what is left.
 
@@ -315,25 +472,11 @@ def availability(db: Session, today=None):
         key = (row.item, row.unit_group)
         on_hand[key] += max(row.base_quantity, 0.0)
         ingredients.setdefault(key, pairings.Ingredient(0, row.unit, row.item))
+    first_seen, entries = _reservations(db, today)
     reserved = defaultdict(float)
-    reserved_by = defaultdict(list)
-    day_names = {}
-    for week_meal in _planned_rows(db, today):
-        if week_meal.day_id is not None and week_meal.day_id not in day_names:
-            day = db.get(models.Day, week_meal.day_id)
-            day_names[week_meal.day_id] = day.day_name if day else None
-        totals, first, _, _ = pairings.meal_lines(week_meal.meal, week_meal.servings)
-        for key, amount in totals.items():
-            if amount <= pairings.EPSILON:
-                continue
-            reserved[key] += amount
-            ingredients.setdefault(key, first[key])
-            reserved_by[key].append({
-                "week_plan_id": week_meal.week_plan_id,
-                "meal_id": week_meal.meal_id,
-                "name": week_meal.meal.name,
-                "day": day_names.get(week_meal.day_id),
-            })
+    for key, key_entries in entries.items():
+        reserved[key] = sum(entry["base"] for entry in key_entries)
+        ingredients.setdefault(key, first_seen[key])
     result = []
     for key in sorted(set(on_hand) | set(reserved)):
         if on_hand[key] <= pairings.EPSILON and reserved[key] <= pairings.EPSILON:
@@ -344,11 +487,16 @@ def availability(db: Session, today=None):
         result.append({
             "item": ingredient.item,
             "unit": "" if ingredient.unit == "piece" else ingredient.unit,
+            "unit_group": key[1],
             "on_hand": _display(ingredient, on_hand[key]),
             "reserved": _display(ingredient, reserved[key]),
             "available": _display(ingredient, max(left, 0.0)),
             "short": _display(ingredient, shortage) if shortage else "",
-            "reserved_by": reserved_by[key],
+            "reserved_by": [
+                {**{k: v for k, v in entry.items() if k != "base"},
+                 "amount": _display(ingredient, entry["base"])}
+                for entry in entries.get(key, [])
+            ],
         })
     return result
 
