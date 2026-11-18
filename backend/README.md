@@ -254,17 +254,19 @@ Removes that meal from the week and returns the updated week plan.
 
 #### Inventory
 
-- `GET /inventory` – stock rows (`id`, `item`, `unit`, `quantity`, `location`).
-- `GET /inventory/availability` – per ingredient `on_hand`, `reserved`, `available`, `short`, and `reserved_by` (week plan, meal, day). Reservations are computed from planned meals (not skipped or cooked) in weeks ending on or after the optional `ref_date` (default today); nothing is stored.
+- `GET /inventory` (optional `ref_date`) – stock rows (`id`, `item`, `unit`, `quantity`, `location`, `unit_group`, `added_at`, `low`, `reserved`, `reserved_by`). `added_at` is the ISO UTC time of the latest credit, `null` when unknown; on startup, existing rows are backfilled from their latest non-reverted purchase. `low` is true when the ingredient is a tracked staple at or below its minimum, aggregated across its fridge and pantry rows (the highest minimum applies). `reserved` is the amount of that row reserved by planned meals and `reserved_by` lists them (`meal_id`, `name`, `day`, `amount`). Reservations are split fridge first, then pantry, the same order cooking deducts; a reservation beyond stock is not assigned to any row. Reservations use the same rules as the availability endpoint below (`ref_date` defaults to today).
+- `GET /inventory/availability` – per ingredient `unit_group`, `on_hand`, `reserved`, `available`, `short`, and `reserved_by` (week plan, meal, day, and the `amount` that meal reserves). Reservations are computed from planned meals (not skipped or cooked) in weeks ending on or after the optional `ref_date` (default today); nothing is stored.
 - `PUT /inventory/{item_id}` with `{ "quantity": "2" }` – manual correction to an absolute quantity in the row's unit (whole numbers, fractions like `1/2` or `1 1/2`, or decimals; `0` empties the row). 400 for an invalid quantity, 404 for an unknown id.
+- `POST /inventory/{item_id}/use` with `{ "amount": "1/2" }` – remove up to that amount from a row, never below zero. Returns `{ "item": <row as in GET /inventory>, "removed": "<amount actually removed>" }`. 400 for a non-positive or unreadable amount, 404 for an unknown id, 422 for an empty amount.
+- `POST /inventory/{item_id}/return` with `{ "amount": "1/2" }` – add an amount back to a row (the undo of use). Returns `{ "item": <row>, "added": "<amount added>" }`; same errors as use.
 - `POST /inventory/purchases` and `DELETE /inventory/purchases/{purchase_id}` credit and revert purchases (see the root `README.md`).
 
 `GET /week-plans/{week_plan_id}/shopping-list` and the pairings do not subtract inventory and ignore cooked/skipped state. For stock-aware figures use the reconcile endpoints below.
 
 #### Staples (minimums)
 
-- `GET /inventory/staples` – every stock row with a minimum (`id`, `item`, `unit`, `location`, `quantity`, `minimum`), including empty rows.
-- `PUT /inventory/{item_id}/minimum` with `{ "minimum": "2" }` – set the minimum for that ingredient (it applies across fridge and pantry rows; the other rows' minimums are cleared). `0` is allowed and warns only when the item runs out; `null` clears it. 400 for an invalid value, 404 for an unknown id.
+- `GET /inventory/staples` – every stock row with a minimum (`id`, `item`, `unit`, `location`, `quantity`, `minimum`, `low`), including empty rows. `low` is true when the ingredient's total stock (fridge plus pantry) is at or below its minimum.
+- `PUT /inventory/{item_id}/minimum` with `{ "minimum": "2" }` – returns the staple row including `low`. Sets the minimum for that ingredient (it applies across fridge and pantry rows; the other rows' minimums are cleared). `0` is allowed and warns only when the item runs out; `null` clears it. 400 for an invalid value, 404 for an unknown id.
 
 #### Package sizes
 
