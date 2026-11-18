@@ -8,7 +8,7 @@ A personal web application for weekly meal planning, shared grocery list managem
 - **Meal Library**: Create and search meals with tags, notes, and ingredients; optionally record prep time, cook time, and a make-ahead flag, and filter by them
 - **Shopping**: A server-side shopping list that keeps manual items and purchase state, plus a This week / Next week view that compares what the planned meals need with your stock, warns about low staples and shortfalls, and previews list changes before applying them
 - **Recipe yields and planned servings**: Each recipe can store how many servings it makes, and each planned meal has its own servings; the shopping list and pairings scale to match
-- **Clean UI**: Modern design with light gradients and intuitive interactions
+- **Clean UI**: Modern, token-based design with intuitive interactions. A bottom tab bar (below 1024px) or a left rail (1024px and wider) switches between Plan, Meals, and Shop; each page has its own address (`#/plan`, `#/meals`, `#/shop`; `#/plan` is the default), so the browser back button returns to the previous page
 
 ## Tech Stack
 
@@ -21,7 +21,7 @@ A personal web application for weekly meal planning, shared grocery list managem
 **Frontend:**
 - React 18
 - Vite
-- Modern CSS with gradients
+- Modern CSS with design tokens
 
 ## Getting Started
 
