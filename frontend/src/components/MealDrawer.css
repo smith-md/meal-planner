@@ -6,7 +6,7 @@
   z-index: 1000;
   display: flex;
   justify-content: flex-end;
-  background: rgba(36, 45, 39, 0.45);
+  background: var(--scrim);
 }
 
 .drawer {

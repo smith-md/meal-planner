@@ -1,5 +1,7 @@
 /* Design tokens from docs/design-playbook.md. Components reference these, never raw hex values. */
 :root {
+  color-scheme: light;
+
   --paper: #f7f6f0;
   --surface: #fffefa;
   --surface-sunk: #edece4;
@@ -25,6 +27,16 @@
   --ok: #2f6b45;
   --ok-bg: #dcebd9;
 
+  /* Stock suggestion badges (WeekPlanner.css) and overlays; light values match the former literals. */
+  --stock-line: #ddd;
+  --focus-alt: #1a73e8;
+  --stock-ok: #2e7d32;
+  --stock-ok-bg: #e8f5e9;
+  --stock-warn: #8a5a00;
+  --stock-warn-bg: #fff4e0;
+  --scrim: rgba(36, 45, 39, 0.45);
+  --scrim-review: rgba(36, 45, 39, 0.4);
+
   --radius-sm: 10px;
   --radius-md: 14px;
   --radius-lg: 22px;
@@ -46,4 +58,49 @@
 
   --font-body: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-heading: "Manrope", "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Dark theme: follows the system setting only. Redefines tokens only; no component rules.
+   Contrast is verified by scripts/check-contrast.mjs (results in docs/contrast-dark-mode.md). */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --paper: #141916;
+    --surface: #1c231f;
+    --surface-sunk: #101411;
+    --line: #36423a;
+
+    --ink: #e9ede6;
+    --ink-muted: #a3afa5;
+
+    --green: #a9cfb5;
+    --green-hover: #c3e0cc;
+    --focus: #e0a279;
+
+    --tint-sage: #2b3d30;
+    --tint-clay: #4a3228;
+    --tint-blue: #28394a;
+    --tint-oat: #3d3624;
+    --ink-on-tint: #e6ece4;
+
+    --danger: #f0a58a;
+    --danger-bg: #43251a;
+    --warn: #e3c56f;
+    --warn-bg: #3d3112;
+    --ok: #8fd0a2;
+    --ok-bg: #1f3a28;
+
+    --stock-line: #4a554d;
+    --focus-alt: #8ab4f8;
+    --stock-ok: #6fbf7a;
+    --stock-ok-bg: #1d3321;
+    --stock-warn: #e0b050;
+    --stock-warn-bg: #3a2d12;
+    --scrim: rgba(0, 0, 0, 0.6);
+    --scrim-review: rgba(0, 0, 0, 0.6);
+
+    --shadow-card: 0 1px 2px #0000004d;
+    --shadow-float: 0 16px 48px #00000099;
+  }
 }

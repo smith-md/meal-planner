@@ -1,0 +1,107 @@
+// Checks WCAG 2.x contrast for the token pairings in src/styles/tokens.css, light and dark.
+// Usage (from frontend/): node scripts/check-contrast.mjs > docs/contrast-dark-mode.md
+// Exits 1 if any required pairing fails. No dependencies.
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+
+const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/styles/tokens.css'), 'utf8')
+
+function declarations(block) {
+  const out = {}
+  for (const m of block.matchAll(/(--[\w-]+)\s*:\s*(#[0-9a-fA-F]{3,8})\s*;/g)) out[m[1]] = m[2]
+  return out
+}
+
+// Light = :root block; dark = overrides inside the prefers-color-scheme: dark media block.
+const mediaStart = css.indexOf('@media (prefers-color-scheme: dark)')
+if (mediaStart < 0) throw new Error('dark media block not found in tokens.css')
+const light = declarations(css.slice(0, mediaStart))
+const dark = { ...light, ...declarations(css.slice(mediaStart)) }
+
+function lum(hex) {
+  let h = hex.slice(1)
+  if (h.length === 3) h = [...h].map((c) => c + c).join('')
+  const ch = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255)
+  const [r, g, b] = ch.map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+function ratio(a, b) {
+  const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p)
+  return (x + 0.05) / (y + 0.05)
+}
+
+// [kind, foreground token, background token, minimum ratio, where used]
+// kind: text (4.5), ui (3: borders, icons, focus rings), info (reported, no AA minimum: decorative).
+const T = 4.5
+const U = 3
+const surfaces = ['paper', 'surface', 'surface-sunk']
+const tints = ['tint-sage', 'tint-clay', 'tint-blue', 'tint-oat']
+const pairs = []
+const add = (kind, fg, bg, min, use) => pairs.push([kind, fg, bg, min, use])
+
+for (const s of surfaces) add('text', 'ink', s, T, 'body text')
+for (const s of surfaces) add('text', 'ink-muted', s, T, 'secondary text, placeholders')
+for (const s of surfaces) add('text', 'green', s, T, 'link and quiet-button text')
+add('text', 'green', 'tint-sage', T, 'nav active label')
+add('text', 'surface', 'green', T, 'primary button, selected day')
+add('text', 'surface', 'green-hover', T, 'primary button hover')
+for (const t of tints) add('text', 'ink-on-tint', t, T, 'planned meal, tags, chips on tint')
+add('text', 'ink', 'tint-sage', T, 'picker selected row')
+add('text', 'ink', 'warn-bg', T, 'drawer warning text')
+add('text', 'ink', 'stock-ok-bg', T, 'confirmed stock badge text')
+add('text', 'ink', 'stock-warn-bg', T, 'projected stock badge text')
+for (const s of ['danger', 'ok']) for (const bg of ['surface', 'paper']) add('text', s, bg, T, `${s} text/message`)
+add('text', 'danger', 'danger-bg', T, 'error banner, danger pill')
+add('text', 'ok', 'ok-bg', T, 'ok pill')
+add('text', 'warn', 'warn-bg', T, 'warn pill')
+add('text', 'danger', 'surface-sunk', T, 'danger quiet button hover')
+for (const t of ['surface', 'paper']) add('text', 'ink-muted', t, T, 'muted text on card')
+add('text', 'ink-muted', 'surface-sunk', T, 'disabled/readonly field text')
+
+for (const s of surfaces) add('ui', 'ink-muted', s, U, 'input and dashed control borders')
+for (const s of surfaces) add('ui', 'focus', s, U, 'focus ring (3px outline)')
+for (const t of tints) add('ui', 'focus', t, U, 'focus ring on tinted cards')
+for (const s of ['surface', 'paper']) add('ui', 'green', s, U, 'selected/active border, checkbox accent')
+add('ui', 'danger', 'surface', U, 'error border')
+add('ui', 'danger', 'danger-bg', U, 'error banner border')
+add('ui', 'warn', 'warn-bg', U, 'warning border')
+add('ui', 'stock-ok', 'stock-ok-bg', U, 'confirmed badge border')
+add('ui', 'stock-ok', 'surface', U, 'confirmed badge border vs card')
+add('ui', 'stock-warn', 'stock-warn-bg', U, 'projected badge dashed border')
+add('ui', 'stock-warn', 'surface', U, 'projected badge border vs card')
+add('ui', 'focus-alt', 'surface', U, 'stock heading focus outline')
+add('ui', 'focus-alt', 'paper', U, 'stock heading focus outline')
+
+// Decorative separators and card edges: WCAG 1.4.11 does not require 3:1 for these
+// because they do not identify a control or state (buttons carry text labels).
+for (const s of surfaces) add('info', 'line', s, 0, 'decorative divider / card edge')
+add('info', 'stock-line', 'surface', 0, 'decorative stock card divider')
+
+const fmt = (n) => n.toFixed(2)
+let failures = 0
+const rows = []
+for (const [kind, fg, bg, min, use] of pairs) {
+  const cells = [kind, `\`--${fg}\``, `\`--${bg}\``, use]
+  for (const theme of [light, dark]) {
+    const r = ratio(theme['--' + fg], theme['--' + bg])
+    const pass = min === 0 ? 'info' : r >= min ? 'pass' : 'FAIL'
+    if (pass === 'FAIL') failures++
+    cells.push(`${fmt(r)} ${pass}`)
+  }
+  cells.push(min === 0 ? 'n/a' : `${min}:1`)
+  rows.push(`| ${cells.join(' | ')} |`)
+}
+
+console.log('# Contrast check: light and dark tokens')
+console.log()
+console.log('Generated by `node scripts/check-contrast.mjs` from `src/styles/tokens.css`. Do not edit by hand.')
+console.log('WCAG 2.x AA: text 4.5:1 (3:1 for large text, not relied on here), UI borders, icons and focus rings 3:1.')
+console.log('`info` rows are decorative separators with no AA minimum (WCAG 1.4.11); they are reported only.')
+console.log()
+console.log('| Kind | Foreground | Background | Used for | Light | Dark | Required |')
+console.log('|---|---|---|---|---|---|---|')
+for (const r of rows) console.log(r)
+console.log()
+console.log(failures === 0 ? 'Result: all required pairings pass.' : `Result: ${failures} required pairing(s) FAIL.`)
+process.exit(failures === 0 ? 0 : 1)
