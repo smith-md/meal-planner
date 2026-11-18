@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   getCurrentWeekPlan, updateDayState, addMealToWeek, moveWeekMeal, removeMealFromWeek, fetchMeals,
-  updateWeekMealServings, setWeekMealStatus, cookWeekMeal, setWeekMealWorthRepeating
+  updateWeekMealServings, setWeekMealStatus, cookWeekMeal, setWeekMealWorthRepeating,
+  reserveLeftover, updateLeftover, releaseLeftover
 } from '../api';
 import MealPickerModal from './MealPickerModal';
 import MealDrawer from './MealDrawer';
 import MealPairings from './MealPairings';
 import StockSuggestions from './StockSuggestions';
 import Sheet from './Sheet';
-import { Button, EmptyState, ErrorState, RepeatBadge, SegmentedControl, Select, Skeleton, StatusPill } from './ui';
+import { Button, EmptyState, ErrorState, Input, RepeatBadge, SegmentedControl, Select, Skeleton, StatusPill } from './ui';
 
 import './WeekPlanner.css';
 
@@ -55,6 +56,19 @@ const monthDay = key => parseDate(key).toLocaleDateString(undefined, { month: 's
 const weekday = (key, style) => parseDate(key).toLocaleDateString(undefined, { weekday: style });
 const slotLabel = id => SLOTS.find(slot => slot.id === id)?.label ?? id;
 const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
+const SLOT_RANK = { breakfast: 0, lunch: 1, dinner: 2 };
+
+// Days and slots strictly later than `source` ({ date, slot }) in the same week, as
+// [{ day, slots }]. Days with no later slot are left out.
+function laterOptions(days, slotList, source) {
+  return days
+    .filter(day => day.date >= source.date)
+    .map(day => ({
+      day,
+      slots: slotList.filter(slot => day.date > source.date || SLOT_RANK[slot.id] > SLOT_RANK[source.slot])
+    }))
+    .filter(option => option.slots.length > 0);
+}
 
 function defaultDayId(plan) {
   const today = dateKey(new Date());
@@ -114,10 +128,14 @@ function ServingsInput({ meal, servings, onCommit, disabled }) {
 // One planned meal with all of its actions. Used in the slot rows and in the unplaced list.
 function PlannedMealCard({
   entry, day, placed, message, moveButtonRef, onServings, onCook, onSkipToggle, onRemove, onMove, onPairing, onRepeat,
-  dragging, onDragStart, onDragEnd
+  dragging, onDragStart, onDragEnd, saved, onSaveLeftovers
 }) {
   const { meal, schedule, servings } = entry;
   const cooked = schedule.status === 'cooked';
+  const made = schedule.cooked_servings;
+  const remaining = schedule.remaining_servings;
+  const reserved = schedule.reserved_servings ?? 0;
+  const unreserved = remaining != null ? remaining - reserved : 0;
   const skipped = schedule.status === 'skipped';
   const draggable = placed && !cooked && !!onDragStart;
   return (
@@ -131,12 +149,27 @@ function PlannedMealCard({
         <span className="planned-meal__name">{meal.name}</span>
         {cooked && (
           <StatusPill status="ok">
-            {`Cooked${day ? ` ${day.day_name}` : ''}${schedule.cooked_servings != null ? ` (${schedule.cooked_servings} servings)` : ''}`}
+            {`Cooked${day ? ` ${day.day_name}` : ''}`}
           </StatusPill>
         )}
         {cooked && <RepeatBadge value={schedule.worth_repeating} />}
         {skipped && <StatusPill status="warn">Skipped</StatusPill>}
       </div>
+      {cooked && made != null && (
+        <p className="planned-meal__portions">
+          Made {made} · ate {schedule.eaten_servings ?? 0} · {remaining} left
+          {reserved > 0 && ` · ${reserved} saved`}
+        </p>
+      )}
+      {cooked && saved.length > 0 && (
+        <ul className="planned-meal__saved" aria-label={`Leftovers saved from ${meal.name}`}>
+          {saved.map(({ leftover, day: savedDay }) => (
+            <li key={leftover.id}>
+              {slotLabel(leftover.slot)}, {savedDay ? weekday(savedDay.date, 'short') : ''} · {plural(leftover.portions, 'portion')}
+            </li>
+          ))}
+        </ul>
+      )}
       {meal.tags && <span className="planned-meal__tags">{meal.tags}</span>}
       {meal.notes && <p className="planned-meal__notes">{meal.notes}</p>}
       <ServingsInput
@@ -177,6 +210,17 @@ function PlannedMealCard({
             onClick={onMove}
           >
             {placed ? 'Move' : 'Choose day'}
+          </Button>
+        )}
+        {cooked && unreserved > 0 && (
+          <Button
+            variant="secondary"
+            className="card-action"
+            data-save-leftovers={meal.id}
+            aria-label={`Save leftovers: ${meal.name}`}
+            onClick={onSaveLeftovers}
+          >
+            Save leftovers
           </Button>
         )}
         <Button
@@ -379,6 +423,213 @@ function MoveSheet({ entry, days, slots, defaultDayId: fallbackDayId, onMove, on
   );
 }
 
+// A reserved slot: portions of a cooked meal set aside for this day and slot. Not draggable.
+function LeftoverCard({ leftover, sourceDay, message, onMove, onRelease }) {
+  const from = sourceDay ? ` from ${weekday(sourceDay.date, 'short')} ${slotLabel(leftover.source_slot).toLowerCase()}` : '';
+  return (
+    <li className="planned-meal is-leftover">
+      <div className="planned-meal__head">
+        <span className="planned-meal__name">Leftovers: {leftover.meal_name}</span>
+      </div>
+      <p className="planned-meal__portions">{plural(leftover.portions, 'portion')}{from}</p>
+      <div className="planned-meal__actions">
+        <Button
+          variant="secondary"
+          className="card-action"
+          data-leftover-move={leftover.id}
+          aria-label={`Move leftovers of ${leftover.meal_name}`}
+          onClick={onMove}
+        >
+          Move
+        </Button>
+        <Button
+          variant="danger-quiet"
+          className="card-action"
+          aria-label={`Release leftovers of ${leftover.meal_name}`}
+          onClick={onRelease}
+        >
+          Release
+        </Button>
+      </div>
+      {message && <p role="alert" className="cook-message">{message}</p>}
+    </li>
+  );
+}
+
+// onCook({ servingsMade, servingsEaten }) rejects on failure; the sheet then shows the message.
+function CookSheet({ entry, day, onCook, onClose }) {
+  const { meal, servings } = entry;
+  const [made, setMade] = useState(servings != null ? String(servings) : '');
+  const [eaten, setEaten] = useState(servings != null ? String(servings) : '');
+  const [eatenEdited, setEatenEdited] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const madeRef = useRef(null);
+
+  useEffect(() => { madeRef.current?.focus(); }, []);
+
+  const madeNumber = Number(made);
+  const eatenNumber = Number(eaten);
+  const madeValid = made !== '' && Number.isInteger(madeNumber) && madeNumber >= 1 && madeNumber <= 99;
+  const eatenValid = eaten !== '' && Number.isInteger(eatenNumber) && eatenNumber >= 0
+    && (!madeValid || eatenNumber <= madeNumber);
+  const left = madeValid && eatenValid ? madeNumber - eatenNumber : null;
+
+  // Eaten follows made (everything eaten) until the user sets it themselves.
+  const changeMade = value => {
+    setMade(value);
+    if (!eatenEdited) setEaten(value);
+  };
+
+  const submit = async event => {
+    event?.preventDefault();
+    if (busy || !madeValid || !eatenValid) return;
+    setBusy(true);
+    setError('');
+    try {
+      await onCook({ servingsMade: madeNumber, servingsEaten: eatenNumber });
+    } catch (err) {
+      setError(err.message || 'Could not mark the meal cooked.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Sheet title="Mark cooked" onClose={onClose}>
+      <p className="move__meal">{meal.name}{day ? ` · ${day.day_name}` : ''}</p>
+      <form className="move__form" onSubmit={submit}>
+        <div className="move__field">
+          <Input
+            ref={madeRef}
+            label="Servings made"
+            type="number"
+            inputMode="numeric"
+            min="1"
+            max="99"
+            step="1"
+            value={made}
+            onChange={event => changeMade(event.target.value)}
+            error={made !== '' && !madeValid ? 'Enter a whole number from 1 to 99.' : undefined}
+          />
+        </div>
+        <div className="move__field">
+          <Input
+            label="Eaten now"
+            type="number"
+            inputMode="numeric"
+            min="0"
+            max={madeValid ? madeNumber : 99}
+            step="1"
+            value={eaten}
+            onChange={event => { setEatenEdited(true); setEaten(event.target.value); }}
+            error={eaten !== '' && !eatenValid ? 'Enter a whole number from 0 up to the servings made.' : undefined}
+          />
+        </div>
+        <p className="cook__summary" role="status">
+          {left != null ? `${plural(left, 'portion')} left over. ` : ''}
+          Cooking uses up the ingredients for the servings made from your inventory.
+        </p>
+        {error && <p className="planner__error" role="alert">{error}</p>}
+        <Button className="move__save" type="submit" loading={busy} disabled={!madeValid || !eatenValid}>
+          Mark cooked
+        </Button>
+      </form>
+    </Sheet>
+  );
+}
+
+// Reserve portions of a cooked meal for a later slot (leftover == null), or move/resize a
+// reservation. onSave({ date, slot, portions }) rejects on failure; the sheet then shows the message.
+function LeftoverSheet({ entry, leftover, days, slots, onSave, onClose }) {
+  const { meal, schedule } = entry;
+  const sourceDay = days.find(day => day.id === schedule.day_id);
+  const source = { date: sourceDay?.date ?? '', slot: schedule.slot };
+  const visible = slots.length > 0 ? slots : SLOTS;
+  const preferred = laterOptions(days, visible, source);
+  // If every later slot is hidden, offer them all rather than leaving no choice.
+  const options = preferred.length > 0 ? preferred : laterOptions(days, SLOTS, source);
+  const maxPortions = (schedule.remaining_servings ?? 0) - (schedule.reserved_servings ?? 0) + (leftover?.portions ?? 0);
+
+  const [dayValue, setDayValue] = useState(() => {
+    const current = leftover && options.find(option => option.day.id === leftover.day_id);
+    return String((current ?? options[0])?.day.id ?? '');
+  });
+  const [slot, setSlot] = useState(leftover?.slot ?? '');
+  const [portions, setPortions] = useState(String(leftover?.portions ?? 1));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const dayRef = useRef(null);
+
+  useEffect(() => { dayRef.current?.focus(); }, []);
+
+  const chosen = options.find(option => String(option.day.id) === dayValue) ?? options[0];
+  const slotChoices = chosen?.slots ?? [];
+  const activeSlot = slotChoices.some(option => option.id === slot) ? slot : slotChoices[0]?.id;
+  const portionsNumber = Number(portions);
+  const portionsValid = portions !== '' && Number.isInteger(portionsNumber)
+    && portionsNumber >= 1 && portionsNumber <= maxPortions;
+
+  const save = async event => {
+    event?.preventDefault();
+    if (busy || !chosen || !activeSlot || !portionsValid) return;
+    setBusy(true);
+    setError('');
+    try {
+      await onSave({ date: chosen.day.date, slot: activeSlot, portions: portionsNumber });
+    } catch (err) {
+      setError(err.message || 'Could not save the leftovers.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Sheet title={leftover ? 'Move leftovers' : 'Save leftovers'} onClose={onClose}>
+      <p className="move__meal">{meal.name}</p>
+      {options.length === 0 ? (
+        <p className="planner__error" role="status">No later slot is left in this week.</p>
+      ) : (
+        <form className="move__form" onSubmit={save}>
+          <div className="move__field">
+            <Select label="Day" ref={dayRef} value={String(chosen.day.id)} onChange={event => setDayValue(event.target.value)}>
+              {options.map(({ day }) => (
+                <option key={day.id} value={String(day.id)}>{weekday(day.date, 'long')}, {monthDay(day.date)}</option>
+              ))}
+            </Select>
+          </div>
+          <fieldset className="move__slots">
+            <legend>Meal</legend>
+            {slotChoices.map(option => (
+              <label key={option.id} className={activeSlot === option.id ? 'is-on' : ''}>
+                <input type="radio" name="leftover-slot" value={option.id} checked={activeSlot === option.id}
+                  onChange={() => setSlot(option.id)} />
+                {option.label}
+              </label>
+            ))}
+          </fieldset>
+          <div className="move__field">
+            <Input
+              label="Portions"
+              hint={`Up to ${maxPortions}`}
+              type="number"
+              inputMode="numeric"
+              min="1"
+              max={maxPortions}
+              step="1"
+              value={portions}
+              onChange={event => setPortions(event.target.value)}
+              error={portions !== '' && !portionsValid ? `Enter a whole number from 1 to ${maxPortions}.` : undefined}
+            />
+          </div>
+          {error && <p className="planner__error" role="alert">{error}</p>}
+          <Button className="move__save" type="submit" loading={busy} disabled={!portionsValid}>
+            {leftover ? 'Move here' : 'Save here'}
+          </Button>
+        </form>
+      )}
+    </Sheet>
+  );
+}
+
 function WeekPlanner() {
   const [weekPlan, setWeekPlan] = useState(null);
   const [meals, setMeals] = useState([]);
@@ -386,6 +637,8 @@ function WeekPlanner() {
   const [selectedDayId, setSelectedDayId] = useState(null);
   const [picker, setPicker] = useState(null); // { day, slot } for a slot, {} for the header button
   const [moving, setMoving] = useState(null); // meal id being moved
+  const [cooking, setCooking] = useState(null); // meal id being marked cooked
+  const [savingLeftovers, setSavingLeftovers] = useState(null); // { mealId, leftoverId | null }
   const [newMealDraft, setNewMealDraft] = useState(null);
   const [error, setError] = useState('');
   const [pairingSource, setPairingSource] = useState('');
@@ -441,12 +694,12 @@ function WeekPlanner() {
       own.focus();
       return;
     }
+    // An element in a hidden day column ignores focus(), so try the next selector until one takes it.
     for (const selector of target.selectors) {
       const element = document.querySelector(selector);
-      if (element) {
-        element.focus();
-        return;
-      }
+      if (!element) continue;
+      element.focus();
+      if (document.activeElement === element) return;
     }
   }, [weekPlan]);
 
@@ -553,29 +806,78 @@ function WeekPlanner() {
     return runMealAction(meal.id, () => setWeekMealWorthRepeating(weekPlan.id, meal.id, value));
   };
 
-  const handleCook = async ({ meal, schedule, servings }) => {
-    const day = weekPlan.days.find(d => d.id === schedule.day_id);
-    const what = servings != null ? `${servings} servings of ${meal.name}` : meal.name;
-    if (!window.confirm(`Mark ${what} cooked${day ? ` on ${day.day_name}` : ''}? This uses up the ingredients from your inventory.`)) {
-      return;
-    }
+  // Rejects on failure so the cook sheet can show the message and stay open.
+  const handleCook = async ({ meal, schedule }, servings) => {
     setMealMessage(meal.id, '');
+    const result = await cookWeekMeal(weekPlan.id, meal.id, servings);
+    // Close the sheet first so it hands focus back before the card changes.
+    setCooking(null);
+    const notes = [];
+    const short = result.deductions.filter(d => d.short);
+    if (short.length) {
+      notes.push(`Not enough in stock: ${short.map(d => `${d.item} (short ${d.short}${d.unit ? ` ${d.unit}` : ''})`).join(', ')}.`);
+    }
+    if (result.untracked.length) {
+      notes.push(`Not deducted (no measurable amount): ${result.untracked.join(', ')}.`);
+    }
+    setMealMessage(meal.id, notes.join(' '));
+    focusAfter.current = { mealId: meal.id, selectors: afterActionTargets(schedule) };
     try {
-      const result = await cookWeekMeal(weekPlan.id, meal.id);
-      const notes = [];
-      const short = result.deductions.filter(d => d.short);
-      if (short.length) {
-        notes.push(`Not enough in stock: ${short.map(d => `${d.item} (short ${d.short}${d.unit ? ` ${d.unit}` : ''})`).join(', ')}.`);
-      }
-      if (result.untracked.length) {
-        notes.push(`Not deducted (no measurable amount): ${result.untracked.join(', ')}.`);
-      }
-      setMealMessage(meal.id, notes.join(' '));
-      focusAfter.current = { mealId: meal.id, selectors: afterActionTargets(schedule) };
       await reloadWeekPlan();
     } catch (err) {
       focusAfter.current = null;
-      setMealMessage(meal.id, err.message);
+      setError(err.message || 'The meal was cooked, but the plan could not be refreshed.');
+    }
+  };
+
+  // Leftover reservations. Each rejects on failure so the sheet can show the message.
+  const handleSaveLeftover = async (entry, payload) => {
+    const updated = await reserveLeftover(weekPlan.id, entry.meal.id, payload);
+    const target = updated.days.find(day => day.date === payload.date);
+    // Focus the new leftover card's Move button (it is in the day we switch to).
+    const created = updated.leftovers.find(item => item.meal_id === entry.meal.id
+      && item.day_id === target?.id && item.slot === payload.slot);
+    focusAfter.current = {
+      mealId: null,
+      selectors: [
+        ...(created ? [`[data-leftover-move="${created.id}"]`] : []),
+        ...(target ? [`[data-add="${target.id}-${payload.slot}"]`, `#day-${target.id}`] : [])
+      ]
+    };
+    setSavingLeftovers(null);
+    setWeekPlan(updated);
+    if (target) setSelectedDayId(target.id);
+  };
+
+  const handleMoveLeftover = async (leftover, payload) => {
+    const updated = await updateLeftover(weekPlan.id, leftover.id, payload);
+    const target = updated.days.find(day => day.date === payload.date);
+    focusAfter.current = { mealId: null, selectors: [`[data-leftover-move="${leftover.id}"]`] };
+    setSavingLeftovers(null);
+    setWeekPlan(updated);
+    if (target) setSelectedDayId(target.id);
+  };
+
+  const handleRelease = async leftover => {
+    const key = `leftover-${leftover.id}`;
+    setMealMessage(key, '');
+    focusAfter.current = {
+      mealId: null,
+      selectors: [
+        `[data-save-leftovers="${leftover.meal_id}"]`,
+        `[data-add="${leftover.day_id}-${leftover.slot}"]`,
+        `#day-${leftover.day_id}`
+      ]
+    };
+    try {
+      const updated = await releaseLeftover(weekPlan.id, leftover.id);
+      // The source card (with its Save leftovers button) may be on another day; show that day so
+      // the button is visible and can take focus.
+      if (leftover.source_day_id != null) setSelectedDayId(leftover.source_day_id);
+      setWeekPlan(updated);
+    } catch (err) {
+      focusAfter.current = null;
+      setMealMessage(key, err.message || 'Could not release the leftovers.');
     }
   };
 
@@ -631,21 +933,53 @@ function WeekPlanner() {
   const unplaced = entries.filter(entry => !isPlaced(entry));
   const visibleSlots = SLOTS.filter(slot => visibleSlotIds.includes(slot.id));
   const isVisible = entry => visibleSlotIds.includes(entry.schedule.slot);
-  const entriesFor = (dayId, slot) => entries.filter(entry =>
-    isPlaced(entry) && entry.schedule.day_id === dayId && entry.schedule.slot === slot);
+  // Reserved leftover portions occupy a slot like a planned meal: they show as a card there, count
+  // toward the day and the slots planned, and so satisfy the need for a meal in that slot.
+  const leftoverEntries = (weekPlan.leftovers || [])
+    .filter(leftover => SLOTS.some(slot => slot.id === leftover.slot)
+      && weekPlan.days.some(day => day.id === leftover.day_id))
+    .map(leftover => ({ leftover }));
+  const leftoverVisible = entry => visibleSlotIds.includes(entry.leftover.slot);
+  const entriesFor = (dayId, slot) => [
+    ...entries.filter(entry => isPlaced(entry) && entry.schedule.day_id === dayId && entry.schedule.slot === slot),
+    ...leftoverEntries.filter(entry => entry.leftover.day_id === dayId && entry.leftover.slot === slot)
+  ];
   const countFor = dayId => entries.filter(entry =>
-    isPlaced(entry) && isVisible(entry) && entry.schedule.day_id === dayId).length;
+    isPlaced(entry) && isVisible(entry) && entry.schedule.day_id === dayId).length
+    + leftoverEntries.filter(entry => leftoverVisible(entry) && entry.leftover.day_id === dayId).length;
 
   const needDays = weekPlan.days.filter(day => day.state === 'need').length;
   const totalSlots = needDays * visibleSlots.length;
   const plannedOnDays = entries.filter(entry =>
-    isPlaced(entry) && isVisible(entry) && entry.schedule.status !== 'skipped').length;
-  const hiddenMeals = entries.filter(entry => isPlaced(entry) && !isVisible(entry)).length;
+    isPlaced(entry) && isVisible(entry) && entry.schedule.status !== 'skipped').length
+    + leftoverEntries.filter(leftoverVisible).length;
+  const hiddenMeals = entries.filter(entry => isPlaced(entry) && !isVisible(entry)).length
+    + leftoverEntries.filter(entry => !leftoverVisible(entry)).length;
   const dragEntry = dragMealId != null ? entries.find(entry => entry.meal.id === dragMealId) : null;
   const today = dateKey(new Date());
   const movingEntry = moving != null ? entries.find(entry => entry.meal.id === moving) : null;
 
+  const cookingEntry = cooking != null ? entries.find(entry => entry.meal.id === cooking) : null;
+  const leftoverSheetEntry = savingLeftovers
+    ? entries.find(entry => entry.meal.id === savingLeftovers.mealId) : null;
+  const leftoverBeingMoved = savingLeftovers?.leftoverId != null
+    ? (weekPlan.leftovers || []).find(item => item.id === savingLeftovers.leftoverId) : null;
+
   const renderCard = entry => {
+    if (entry.leftover) {
+      const { leftover } = entry;
+      const key = `leftover-${leftover.id}`;
+      return (
+        <LeftoverCard
+          key={key}
+          leftover={leftover}
+          sourceDay={weekPlan.days.find(d => d.id === leftover.source_day_id) ?? null}
+          message={messages[key]}
+          onMove={() => setSavingLeftovers({ mealId: leftover.meal_id, leftoverId: leftover.id })}
+          onRelease={() => handleRelease(leftover)}
+        />
+      );
+    }
     const day = weekPlan.days.find(d => d.id === entry.schedule.day_id) ?? null;
     const mealId = entry.meal.id;
     return (
@@ -654,13 +988,17 @@ function WeekPlanner() {
         entry={entry}
         day={day}
         placed={isPlaced(entry)}
+        saved={(weekPlan.leftovers || [])
+          .filter(item => item.meal_id === mealId)
+          .map(item => ({ leftover: item, day: weekPlan.days.find(d => d.id === item.day_id) ?? null }))}
+        onSaveLeftovers={() => setSavingLeftovers({ mealId, leftoverId: null })}
         message={messages[mealId]}
         moveButtonRef={el => {
           if (el) moveButtons.current[mealId] = el;
           else delete moveButtons.current[mealId];
         }}
         onServings={handleServingsChange}
-        onCook={() => handleCook(entry)}
+        onCook={() => setCooking(mealId)}
         onSkipToggle={() => handleSkipToggle(entry.meal, entry.schedule)}
         onRepeat={value => handleRepeat(entry.meal, entry.schedule, value)}
         onRemove={() => handleRemove(entry)}
@@ -807,6 +1145,28 @@ function WeekPlanner() {
           defaultDayId={selectedDayId ?? weekPlan.days[0]?.id}
           onMove={placement => handleMove(movingEntry.meal, placement)}
           onClose={() => setMoving(null)}
+        />
+      )}
+
+      {cookingEntry && (
+        <CookSheet
+          entry={cookingEntry}
+          day={weekPlan.days.find(d => d.id === cookingEntry.schedule.day_id) ?? null}
+          onCook={servings => handleCook(cookingEntry, servings)}
+          onClose={() => setCooking(null)}
+        />
+      )}
+
+      {leftoverSheetEntry && (savingLeftovers.leftoverId == null || leftoverBeingMoved) && (
+        <LeftoverSheet
+          entry={leftoverSheetEntry}
+          leftover={leftoverBeingMoved}
+          days={weekPlan.days}
+          slots={visibleSlots}
+          onSave={payload => (leftoverBeingMoved
+            ? handleMoveLeftover(leftoverBeingMoved, payload)
+            : handleSaveLeftover(leftoverSheetEntry, payload))}
+          onClose={() => setSavingLeftovers(null)}
         />
       )}
 

@@ -254,11 +254,28 @@ Removes that meal from the week and returns the updated week plan.
 - `PUT /week-plans/{week_plan_id}/meals/{meal_id}/day` with `{ "day_id": 12 }` assigns the meal to a day of that week (400 if the day is in another week); `null` unassigns. Assigning a day sets the slot to `dinner` when the meal has none (an existing slot is kept); unassigning clears the slot. Returns the week plan, or 404 if the meal is not planned there. 409 if already cooked. To choose the slot, use the PATCH above.
 - `PUT /week-plans/{week_plan_id}/meals/{meal_id}/status` with `{ "status": "planned" | "skipped" }`. 409 if already cooked.
 - `PUT /week-plans/{week_plan_id}/meals/{meal_id}/worth-repeating` with `{ "worth_repeating": true | false | null }` records feedback on a cooked meal: `true` worth repeating, `false` not worth repeating, `null` clears the mark. It returns the week plan. 409 if the meal is not cooked ("Only a cooked meal can be marked worth repeating."), 404 if the meal is not planned in that week, 422 for a value that is not a boolean or `null`. The mark can be changed or cleared later, and sending the same value again is harmless. It never changes stock, the schedule, servings or status.
-- The week plan's `meal_schedule` lists `{ meal_id, day_id, slot, status, cooked_servings, cooked_at, worth_repeating }` per planned meal; `worth_repeating` is that cooked row's own mark (`null` when unrated or not cooked); `slot` is `breakfast`, `lunch`, `dinner` or `null` (`null` exactly when `day_id` is `null`).
-- `POST /week-plans/{week_plan_id}/meals/{meal_id}/cook` marks the meal cooked and deducts ingredients at the planned servings, which are frozen as `cooked_servings`. 409 if no day is assigned or the meal is skipped. It deducts exactly once; repeats return the stored result with `replayed: true`. The result also carries `worth_repeating` (`null` until the cooked meal is rated).
+- The week plan's `meal_schedule` lists `{ meal_id, day_id, slot, status, cooked_servings, cooked_at, eaten_servings, remaining_servings, reserved_servings, worth_repeating }` per planned meal (`eaten_servings` and `remaining_servings` are `null` until cooked; `reserved_servings` is `0` when nothing is saved); `worth_repeating` is that cooked row's own mark (`null` when unrated or not cooked); `slot` is `breakfast`, `lunch`, `dinner` or `null` (`null` exactly when `day_id` is `null`).
+- `POST /week-plans/{week_plan_id}/meals/{meal_id}/cook` marks the meal cooked and deducts ingredients. The body is optional: `{ "servings_made": 6, "servings_eaten": 2 }`. `servings_made` (integer 1-99) defaults to the planned servings and is frozen as `cooked_servings`; `servings_eaten` (integer 0-99, at most servings made) defaults to servings made. Out-of-range values return 422 and servings eaten above servings made returns 400 ("Servings eaten cannot exceed servings made."). Deduction is scaled by servings made only. 409 if no day is assigned or the meal is skipped. It deducts exactly once; repeats ignore any servings sent and return the stored result with `replayed: true`. The result also carries `servings_made` (same as `cooked_servings`), `servings_eaten`, `servings_remaining` (made minus eaten) and `servings_reserved` (portions saved as leftovers), and `worth_repeating` (`null` until the cooked meal is rated).
   - Deduction order: fridge, then pantry. Short stock floors at zero; each `deductions` entry has `item`, `unit`, `requested`, `deducted`, `short`. Unparseable lines are in `untracked`.
   - A cooked meal cannot be re-dated, re-skipped, have its servings changed (PATCH), or be removed (DELETE); these return 409.
 - Planning, rescheduling, and skipping never change stock; only cooking does.
+
+#### Leftover reservations
+
+Portions of a cooked meal that were made but not eaten (`servings_remaining`) can be set aside for a later slot in the same week. They are stored in the `leftover_reservations` table, not in `week_meals`, so a meal keeps one planned row per week (adding it again still returns 409; servings, status and move operations still act on that one row). All three endpoints return the updated week plan, whose `leftovers` list holds `{ id, meal_id, meal_name, day_id, slot, portions, source_day_id, source_slot }`.
+
+- `POST /week-plans/{week_plan_id}/meals/{meal_id}/leftovers` with `{ "date": "2026-11-19", "slot": "lunch", "portions": 2 }` – reserve portions (`portions` integer 1-99, default 1; `date` and `slot` required).
+- `PATCH /week-plans/{week_plan_id}/leftovers/{leftover_id}` – move (`date` and `slot` together) and/or change `portions`. The body must contain at least one of them; `portions` cannot be `null`.
+- `DELETE /week-plans/{week_plan_id}/leftovers/{leftover_id}` – release the reservation; its portions become available again.
+
+Errors:
+
+- 400 if `date` is not a day of that week ("Choose a day in this week.") or the slot is not strictly later than the source meal's day and slot ("Leftovers must go in a later slot than the meal they came from."). Order is by day, then breakfast, lunch, dinner.
+- 404 if the meal is not planned in that week, or the reservation is not in that week.
+- 409 if the meal is not cooked ("Cook the meal before saving leftovers."), has no day and slot, would reserve more than remains ("Only N portion(s) left to save."; the total across its reservations cannot exceed `servings_remaining`), or already has leftovers in that slot ("These leftovers are already saved for that slot.").
+- 422 for an invalid body (unknown slot, `portions` outside 1-99, a lone `date` or `slot`, or an empty PATCH body).
+
+Reservations add no demand: reconcile, the shopping list, pairings, inventory availability and reservations, and stock suggestions never read them and are unchanged, and no endpoint here changes stock. A reserved slot counts as planned in the web UI and satisfies that day's need for a meal. There is no un-cook; release a reservation to free its portions or PATCH it to move it. Portions not used by the end of the week lapse with no error and no automatic action.
 
 #### Inventory
 
@@ -367,6 +384,13 @@ history is lost.
 It also adds the nullable `week_meals.worth_repeating` column (`NULL` unrated, `1` worth
 repeating, `0` not worth repeating). Existing rows, including already cooked ones, stay
 `NULL` (unrated); nothing is backfilled.
+
+It also adds the nullable `week_meals.eaten_servings` column and creates the
+`leftover_reservations` table (`week_meal_id`, `week_plan_id`, `day_id`, `slot`, `portions`,
+`created_at`; unique on meal row, day and slot). Meals cooked before the column existed
+were eaten in full, so rows with `status = 'cooked'`, a `cooked_servings` value and no
+`eaten_servings` get `eaten_servings = cooked_servings`. The backfill is guarded: it only
+fills empty values, never overwrites a stored one, and running it again changes nothing.
 
 ---
 

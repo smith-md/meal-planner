@@ -524,6 +524,10 @@ def _cook_result(db: Session, week_meal, replayed):
         "meal_id": week_meal.meal_id,
         "status": "cooked",
         "cooked_servings": week_meal.cooked_servings,
+        "servings_made": week_meal.cooked_servings,
+        "servings_eaten": week_meal.eaten_servings,
+        "servings_remaining": week_meal.remaining_servings,
+        "servings_reserved": week_meal.reserved_servings,
         "cooked_at": week_meal.cooked_at,
         "worth_repeating": week_meal.worth_repeating,
         "day_id": week_meal.day_id,
@@ -533,11 +537,12 @@ def _cook_result(db: Session, week_meal, replayed):
     }
 
 
-def cook_week_meal(db: Session, week_plan_id, meal_id):
+def cook_week_meal(db: Session, week_plan_id, meal_id, servings_made=None, servings_eaten=None):
     """Mark a scheduled meal cooked and deduct its ingredients once, in one transaction.
 
     The conditional status update is the exactly-once guard: only the request that flips the
-    row to cooked deducts; any later or concurrent request replays the stored result.
+    row to cooked deducts; any later or concurrent request replays the stored result (the
+    servings sent with a replayed request are ignored).
     """
     week_meal = db.query(models.WeekMeal).filter_by(
         week_plan_id=week_plan_id, meal_id=meal_id
@@ -549,6 +554,10 @@ def cook_week_meal(db: Session, week_plan_id, meal_id):
             raise HTTPException(409, "Assign a day first.")
         if week_meal.status == "skipped":
             raise HTTPException(409, "This meal is skipped; unskip it before cooking.")
+    made = servings_made if servings_made is not None else week_meal.servings
+    eaten = servings_eaten if servings_eaten is not None else made
+    if week_meal.status != "cooked" and made is not None and eaten is not None and eaten > made:
+        raise HTTPException(400, "Servings eaten cannot exceed servings made.")
     try:
         flipped = db.execute(
             update(models.WeekMeal)
@@ -556,7 +565,8 @@ def cook_week_meal(db: Session, week_plan_id, meal_id):
             .where(or_(models.WeekMeal.status.is_(None), models.WeekMeal.status != "cooked"))
             .values(
                 status="cooked",
-                cooked_servings=models.WeekMeal.servings,
+                cooked_servings=made,
+                eaten_servings=eaten,
                 cooked_at=datetime.now(timezone.utc).replace(tzinfo=None),
             )
         ).rowcount

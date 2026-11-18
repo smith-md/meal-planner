@@ -20,12 +20,62 @@ class WeekMeal(Base):
     status = Column(String, nullable=True)
     cooked_servings = Column(Integer, nullable=True)  # frozen when the meal is cooked
     cooked_at = Column(DateTime, nullable=True)
+    # Servings eaten at cook time; servings made is cooked_servings. NULL until cooked.
+    eaten_servings = Column(Integer, nullable=True)
     # breakfast|lunch|dinner (enforced in the app); NULL exactly when day_id is NULL.
     slot = Column(String, nullable=True)
     # Feedback on a cooked row: NULL unrated, True worth repeating, False not worth repeating.
     worth_repeating = Column(Boolean, nullable=True)
 
     meal = relationship("Meal")
+    leftovers = relationship("LeftoverReservation", viewonly=True, order_by="LeftoverReservation.id")
+
+    @property
+    def remaining_servings(self):
+        """Servings made minus servings eaten; None until cooked with a known servings count."""
+        if self.status != "cooked" or self.cooked_servings is None:
+            return None
+        return self.cooked_servings - (self.eaten_servings or 0)
+
+    @property
+    def reserved_servings(self):
+        return sum(row.portions for row in self.leftovers)
+
+
+class LeftoverReservation(Base):
+    """Portions of a cooked meal set aside for a later slot in the same week.
+
+    Deliberately separate from week_meals: a meal keeps one planned row per week, and no
+    demand calculation (reconcile, stock, suggestions, shopping list) reads this table.
+    """
+    __tablename__ = "leftover_reservations"
+    __table_args__ = (UniqueConstraint("week_meal_id", "day_id", "slot"),)
+
+    id = Column(Integer, primary_key=True)
+    week_meal_id = Column(Integer, ForeignKey("week_meals.id"), nullable=False, index=True)
+    week_plan_id = Column(Integer, ForeignKey("week_plans.id"), nullable=False, index=True)
+    day_id = Column(Integer, ForeignKey("days.id"), nullable=False)
+    slot = Column(String, nullable=False)  # breakfast|lunch|dinner (enforced in the app)
+    portions = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+
+    week_meal = relationship("WeekMeal", viewonly=True)
+
+    @property
+    def meal_id(self):
+        return self.week_meal.meal_id
+
+    @property
+    def meal_name(self):
+        return self.week_meal.meal.name
+
+    @property
+    def source_day_id(self):
+        return self.week_meal.day_id
+
+    @property
+    def source_slot(self):
+        return self.week_meal.slot
 
 
 class Meal(Base):
@@ -67,6 +117,7 @@ class WeekPlan(Base):
     meals = relationship("Meal", secondary="week_meals", back_populates="week_plans", viewonly=True)
     meal_servings = relationship("WeekMeal", viewonly=True, order_by="WeekMeal.id")
     meal_schedule = relationship("WeekMeal", viewonly=True, order_by="WeekMeal.id")
+    leftovers = relationship("LeftoverReservation", viewonly=True, order_by="LeftoverReservation.id")
 
 
 class Day(Base):

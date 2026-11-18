@@ -257,6 +257,94 @@ def update_week_meal(db: Session, week_plan_id: int, meal_id: int, data: schemas
     return week_plan
 
 
+SLOT_ORDER = {"breakfast": 0, "lunch": 1, "dinner": 2}
+
+
+def _is_later(day, slot, source_day, source_slot):
+    """True when (day, slot) is strictly after the source's day and slot."""
+    return (day.date, SLOT_ORDER[slot]) > (source_day.date, SLOT_ORDER[source_slot])
+
+
+def _check_leftover_target(db, week_meal, when, slot, portions, exclude_id=None):
+    """Validate a reservation target for a cooked source row and return its day."""
+    day = _day_for_date(db, week_meal.week_plan_id, when)
+    source_day = db.get(models.Day, week_meal.day_id) if week_meal.day_id else None
+    if source_day is None or week_meal.slot is None:
+        raise HTTPException(409, "This meal has no day and slot to save leftovers after.")
+    if not _is_later(day, slot, source_day, week_meal.slot):
+        raise HTTPException(400, "Leftovers must go in a later slot than the meal they came from.")
+    clash = db.query(models.LeftoverReservation).filter_by(
+        week_meal_id=week_meal.id, day_id=day.id, slot=slot
+    ).first()
+    if clash and clash.id != exclude_id:
+        raise HTTPException(409, "These leftovers are already saved for that slot.")
+    other = sum(r.portions for r in week_meal.leftovers if r.id != exclude_id)
+    remaining = week_meal.remaining_servings or 0
+    if other + portions > remaining:
+        raise HTTPException(409, f"Only {max(remaining - other, 0)} portion(s) left to save.")
+    return day
+
+
+def _week_plan_fresh(db, week_plan_id):
+    db.expire_all()
+    return db.query(models.WeekPlan).filter(models.WeekPlan.id == week_plan_id).first()
+
+
+def reserve_leftover(db: Session, week_plan_id: int, meal_id: int, data: schemas.LeftoverCreate):
+    """Set aside portions of a cooked meal for a later slot. Writes no week_meals row and no stock."""
+    week_meal = db.query(models.WeekMeal).filter_by(week_plan_id=week_plan_id, meal_id=meal_id).first()
+    if not week_meal:
+        raise HTTPException(404, "Meal is not planned in this week")
+    if week_meal.status != "cooked":
+        raise HTTPException(409, "Cook the meal before saving leftovers.")
+    day = _check_leftover_target(db, week_meal, data.date, data.slot, data.portions)
+    db.add(models.LeftoverReservation(
+        week_meal_id=week_meal.id, week_plan_id=week_plan_id,
+        day_id=day.id, slot=data.slot, portions=data.portions,
+    ))
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "These leftovers are already saved for that slot.")
+    return _week_plan_fresh(db, week_plan_id)
+
+
+def _get_leftover(db, week_plan_id, leftover_id):
+    row = db.query(models.LeftoverReservation).filter_by(id=leftover_id, week_plan_id=week_plan_id).first()
+    if not row:
+        raise HTTPException(404, "Leftover reservation not found in this week")
+    return row
+
+
+def update_leftover(db: Session, week_plan_id: int, leftover_id: int, data: schemas.LeftoverUpdate):
+    """Move a reservation to another later slot and/or change its portions."""
+    row = _get_leftover(db, week_plan_id, leftover_id)
+    source = row.week_meal
+    portions = data.portions if "portions" in data.model_fields_set else row.portions
+    if data.moves:
+        day = _check_leftover_target(db, source, data.date, data.slot, portions, exclude_id=row.id)
+        row.day_id, row.slot = day.id, data.slot
+    else:
+        current = db.get(models.Day, row.day_id)
+        _check_leftover_target(db, source, current.date, row.slot, portions, exclude_id=row.id)
+    row.portions = portions
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "These leftovers are already saved for that slot.")
+    return _week_plan_fresh(db, week_plan_id)
+
+
+def release_leftover(db: Session, week_plan_id: int, leftover_id: int):
+    """Release a reservation; its portions become unreserved again."""
+    row = _get_leftover(db, week_plan_id, leftover_id)
+    db.delete(row)
+    db.commit()
+    return _week_plan_fresh(db, week_plan_id)
+
+
 # Unit conversion table to normalize units to a base unit
 UNIT_CONVERSIONS = {
     # Volume - base: cups

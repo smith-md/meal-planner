@@ -27,6 +27,7 @@ _ADDED_COLUMNS = (
     ("week_meals", "status", "VARCHAR"),
     ("week_meals", "cooked_servings", "INTEGER"),
     ("week_meals", "cooked_at", "DATETIME"),
+    ("week_meals", "eaten_servings", "INTEGER"),
     ("week_meals", "slot", "VARCHAR"),
     ("week_meals", "worth_repeating", "BOOLEAN"),
     ("inventory_items", "minimum", "FLOAT"),
@@ -49,6 +50,18 @@ def ensure_columns(bind):
         with bind.begin() as connection:
             connection.execute(text(
                 "UPDATE week_meals SET slot = 'dinner' WHERE day_id IS NOT NULL AND slot IS NULL"
+            ))
+    # Older databases also lack the leftover table; create it here so an upgrade is complete
+    # without depending on create_all having run (imported late: models imports this module).
+    from . import models
+    models.LeftoverReservation.__table__.create(bind=bind, checkfirst=True)
+    # Meals cooked before eaten_servings existed were eaten in full, so they show no leftovers.
+    # Guarded, so it is idempotent and never overwrites a stored value.
+    if inspect(bind).has_table("week_meals"):
+        with bind.begin() as connection:
+            connection.execute(text(
+                "UPDATE week_meals SET eaten_servings = cooked_servings "
+                "WHERE status = 'cooked' AND eaten_servings IS NULL AND cooked_servings IS NOT NULL"
             ))
     # Rows that predate added_at take the time of their latest non-reverted credit. Guarded, so it
     # is idempotent and never overwrites a stored date; a row without such a credit stays NULL.
