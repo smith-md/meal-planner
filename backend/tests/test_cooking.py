@@ -104,8 +104,9 @@ def test_planning_changes_only_reservations(client):  # AC2
     assert reserved() == "1" and stock(client) == before
     row = availability(client)[("rice", "cup")]
     assert row["on_hand"] == "2" and row["available"] == "1" and row["short"] == ""
+    # "amount" was added to each entry (AC3); the original keys are unchanged.
     assert row["reserved_by"] == [{"week_plan_id": w["id"], "meal_id": meal["id"],
-                                   "name": "Rice bowl", "day": "Wednesday"}]
+                                   "name": "Rice bowl", "day": "Wednesday", "amount": "1"}]
     # Shopping list is unaffected by scheduling, skipping, or cooking (decision D1).
     listed = client.get(f"/week-plans/{w['id']}/shopping-list").json()
     assert listed != shopping_before and listed != []
@@ -280,8 +281,10 @@ def test_put_inventory_sets_absolute_quantity(client):  # AC5
     url = f"/inventory/{item['id']}"
     response = client.put(url, json={"quantity": "1 1/2"})
     assert response.status_code == 200
-    assert response.json() == {"id": item["id"], "item": "rice", "unit": "cup",
-                               "quantity": "1 1/2", "location": "pantry"}
+    # unit_group and added_at were added to the item payload (AC3); the original keys are unchanged.
+    body = {k: v for k, v in response.json().items() if k not in ("unit_group", "added_at")}
+    assert body == {"id": item["id"], "item": "rice", "unit": "cup",
+                    "quantity": "1 1/2", "location": "pantry"}
     assert client.put(url, json={"quantity": "3"}).json()["quantity"] == "3"
     assert [r["quantity"] for r in stock(client)] == ["3"]
     assert client.put(url, json={"quantity": "0"}).status_code == 200
@@ -378,8 +381,9 @@ def test_cook_mixed_units_and_repeated_ingredient(client):  # AC3
     body = cook(client, w["id"], meal["id"]).json()
     assert body["deductions"] == [{"item": "rice", "unit": "tablespoon", "requested": "8",
                                    "deducted": "8", "short": ""}]
-    assert stock(client) == [{"id": item["id"], "item": "rice", "unit": "cup",
-                              "quantity": "1/2", "location": "pantry"}]
+    # Fields added for AC3 are ignored here; the original keys keep their exact values.
+    assert [{k: row[k] for k in ("id", "item", "unit", "quantity", "location")} for row in stock(client)] == [
+        {"id": item["id"], "item": "rice", "unit": "cup", "quantity": "1/2", "location": "pantry"}]
     assert consumption_rows() == 1
 
 

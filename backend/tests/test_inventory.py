@@ -18,8 +18,10 @@ def test_same_purchase_id_credits_once(client):  # AC1
     assert first.status_code == 200 and second.status_code == 200
     assert first.json()["replayed"] is False
     assert second.json()["replayed"] is True
-    assert stock(client) == [{"id": first.json()["inventory"]["id"], "item": "rice", "unit": "cup",
-                              "quantity": "1", "location": "pantry"}]
+    # Fields added for AC3 are ignored here; the original keys keep their exact values.
+    assert [{k: row[k] for k in ("id", "item", "unit", "quantity", "location")} for row in stock(client)] == [
+        {"id": first.json()["inventory"]["id"], "item": "rice", "unit": "cup",
+         "quantity": "1", "location": "pantry"}]
 
 
 def test_different_purchase_ids_add_up(client):  # AC1 control

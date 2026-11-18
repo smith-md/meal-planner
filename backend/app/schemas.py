@@ -252,6 +252,36 @@ class InventoryItem(BaseModel):
     unit: str
     quantity: str
     location: str
+    unit_group: str
+    added_at: Optional[str] = None  # ISO UTC time of the latest credit; null when unknown
+
+
+class RowReservation(BaseModel):
+    meal_id: int
+    name: str
+    day: Optional[str] = None
+    amount: str
+
+
+class InventoryRow(InventoryItem):
+    """A stock row as listed by GET /inventory: the item plus low flag and reservations."""
+    low: bool
+    reserved: str
+    reserved_by: List[RowReservation]
+
+
+class InventoryUse(BaseModel):
+    amount: str = Field(min_length=1, max_length=20)
+
+
+class InventoryUseResult(BaseModel):
+    item: InventoryRow
+    removed: str
+
+
+class InventoryReturnResult(BaseModel):
+    item: InventoryRow
+    added: str
 
 
 class InventoryPurchaseCreate(BaseModel):
@@ -278,11 +308,13 @@ class ReservedBy(BaseModel):
     meal_id: int
     name: str
     day: Optional[str] = None
+    amount: str
 
 
 class InventoryAvailability(BaseModel):
     item: str
     unit: str
+    unit_group: str
     on_hand: str
     reserved: str
     available: str
@@ -315,6 +347,7 @@ class Staple(BaseModel):
     location: str
     quantity: str
     minimum: Optional[str] = None
+    low: bool = False
 
 
 class GroceryCredit(BaseModel):

@@ -90,6 +90,9 @@ class InventoryItem(Base):
     # Restock threshold in base units. NULL means not a staple; a value (0 included) makes
     # the item a tracked staple.
     minimum = Column(Float, nullable=True)
+    # UTC time of the most recent credit (set by credit_purchase, not changed by a revert).
+    # NULL when unknown.
+    added_at = Column(DateTime, nullable=True)
 
 
 class PackageSize(Base):

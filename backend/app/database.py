@@ -29,6 +29,7 @@ _ADDED_COLUMNS = (
     ("week_meals", "cooked_at", "DATETIME"),
     ("week_meals", "slot", "VARCHAR"),
     ("inventory_items", "minimum", "FLOAT"),
+    ("inventory_items", "added_at", "DATETIME"),
 )
 
 
@@ -47,6 +48,16 @@ def ensure_columns(bind):
         with bind.begin() as connection:
             connection.execute(text(
                 "UPDATE week_meals SET slot = 'dinner' WHERE day_id IS NOT NULL AND slot IS NULL"
+            ))
+    # Rows that predate added_at take the time of their latest non-reverted credit. Guarded, so it
+    # is idempotent and never overwrites a stored date; a row without such a credit stays NULL.
+    if inspect(bind).has_table("inventory_items") and inspect(bind).has_table("inventory_purchases"):
+        with bind.begin() as connection:
+            connection.execute(text(
+                "UPDATE inventory_items SET added_at = ("
+                "SELECT MAX(p.created_at) FROM inventory_purchases p "
+                "WHERE p.inventory_item_id = inventory_items.id AND p.reverted = 0) "
+                "WHERE added_at IS NULL"
             ))
 
 

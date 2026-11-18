@@ -171,9 +171,9 @@ def track_ingredient(week_plan_id: int, data: schemas.PairingIngredientCreate, d
     return pairings.get_pairings(db, week)
 
 
-@app.get("/inventory", response_model=List[schemas.InventoryItem])
-def get_inventory(db: Session = Depends(get_db)):
-    return [inventory.serialize_item(row) for row in inventory.list_inventory(db)]
+@app.get("/inventory", response_model=List[schemas.InventoryRow])
+def get_inventory(ref_date: Optional[date] = None, db: Session = Depends(get_db)):
+    return inventory.serialize_rows(db, inventory.list_inventory(db), ref_date)
 
 
 @app.get("/inventory/availability", response_model=List[schemas.InventoryAvailability])
@@ -183,7 +183,7 @@ def get_inventory_availability(ref_date: Optional[date] = None, db: Session = De
 
 @app.get("/inventory/staples", response_model=List[schemas.Staple])
 def get_staples(db: Session = Depends(get_db)):
-    return [inventory.serialize_staple(row) for row in inventory.list_staples(db)]
+    return inventory.serialize_staples(db, inventory.list_staples(db))
 
 
 @app.get("/package-sizes", response_model=List[schemas.PackageSizeOut])
@@ -199,12 +199,24 @@ def set_package_size(data: schemas.PackageSizeUpdate, db: Session = Depends(get_
 
 @app.put("/inventory/{item_id}/minimum", response_model=schemas.Staple)
 def set_inventory_minimum(item_id: int, data: schemas.MinimumUpdate, db: Session = Depends(get_db)):
-    return inventory.serialize_staple(inventory.set_minimum(db, item_id, data.minimum))
+    return inventory.serialize_staples(db, [inventory.set_minimum(db, item_id, data.minimum)])[0]
 
 
 @app.put("/inventory/{item_id}", response_model=schemas.InventoryItem)
 def set_inventory_quantity(item_id: int, data: schemas.InventoryQuantityUpdate, db: Session = Depends(get_db)):
     return inventory.serialize_item(inventory.set_quantity(db, item_id, data.quantity))
+
+
+@app.post("/inventory/{item_id}/use", response_model=schemas.InventoryUseResult)
+def use_inventory(item_id: int, data: schemas.InventoryUse, db: Session = Depends(get_db)):
+    row, removed = inventory.use_stock(db, item_id, data.amount)
+    return {"item": inventory.serialize_rows(db, [row])[0], "removed": inventory.stock_amount_text(row, removed)}
+
+
+@app.post("/inventory/{item_id}/return", response_model=schemas.InventoryReturnResult)
+def return_inventory(item_id: int, data: schemas.InventoryUse, db: Session = Depends(get_db)):
+    row, added = inventory.return_stock(db, item_id, data.amount)
+    return {"item": inventory.serialize_rows(db, [row])[0], "added": inventory.stock_amount_text(row, added)}
 
 
 @app.post("/inventory/purchases", response_model=schemas.InventoryPurchase)
