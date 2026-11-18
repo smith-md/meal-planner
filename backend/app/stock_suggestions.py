@@ -93,6 +93,7 @@ def compute(db: Session, week, ref_date=None, limit=10):
         projected = sum(1 for use in uses if use["source"] == "projected")
         ranked.append(((-coverage, len(groceries), -projected, meal.name.lower()), {
             "meal_id": meal.id, "name": meal.name, "servings": meal.yield_servings,
+            "worth_repeating": meal.worth_repeating,
             "coverage_percent": int(round(coverage * 100)),
             "covered_count": len(uses), "ingredient_count": len(fractions),
             "uses": uses, "groceries": groceries, "unmeasured": unmeasured,

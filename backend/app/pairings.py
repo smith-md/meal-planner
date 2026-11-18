@@ -195,6 +195,7 @@ def suggestions(ingredient, remaining, meals, planned):
                 "uses": ingredient.describe(min(quantity, remaining)),
                 "extra": ingredient.describe(extra) if extra > EPSILON else "",
                 "needs_more": extra > EPSILON,
+                "worth_repeating": meal.worth_repeating,
             }))
     return [suggestion for _, suggestion in sorted(candidates, key=lambda candidate: candidate[0])[:5]]
 

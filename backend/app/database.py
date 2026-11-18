@@ -28,6 +28,7 @@ _ADDED_COLUMNS = (
     ("week_meals", "cooked_servings", "INTEGER"),
     ("week_meals", "cooked_at", "DATETIME"),
     ("week_meals", "slot", "VARCHAR"),
+    ("week_meals", "worth_repeating", "BOOLEAN"),
     ("inventory_items", "minimum", "FLOAT"),
     ("inventory_items", "added_at", "DATETIME"),
 )

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Sheet from './Sheet';
+import { RepeatBadge } from './ui';
 import './MealPickerModal.css';
 
 // onSelect(meal) may be async: while it runs the options are disabled, and if it rejects the message
@@ -49,6 +50,7 @@ function MealPickerModal({ title = 'Choose a meal', meals, plannedIds = new Set(
             <li key={meal.id}>
               <button type="button" className="picker__option" disabled={planned || busy} onClick={() => choose(meal)}>
                 <span className="picker__name">{meal.name}</span>
+                <RepeatBadge value={meal.worth_repeating} />
                 {planned
                   ? <span className="picker__meta">Already planned this week. Use Move.</span>
                   : meal.tags && <span className="picker__meta">{meal.tags}</span>}

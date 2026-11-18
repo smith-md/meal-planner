@@ -92,6 +92,12 @@ export function setWeekMealStatus(weekPlanId, mealId, status) {
     { status }, 'Could not change the meal status.');
 }
 
+// value: true (worth repeating), false (not worth repeating) or null (clear the mark). Cooked meals only.
+export function setWeekMealWorthRepeating(weekPlanId, mealId, value) {
+  return putJson(`${API_BASE_URL}/week-plans/${weekPlanId}/meals/${mealId}/worth-repeating`,
+    { worth_repeating: value }, 'Could not save that feedback.');
+}
+
 export async function cookWeekMeal(weekPlanId, mealId) {
   const response = await fetch(`${API_BASE_URL}/week-plans/${weekPlanId}/meals/${mealId}/cook`, {
     method: 'POST'

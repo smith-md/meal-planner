@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import Column, Integer, String, Date, ForeignKey, Float, Boolean, DateTime, Index, UniqueConstraint
-from sqlalchemy.orm import relationship
+from sqlalchemy import select
+from sqlalchemy.orm import column_property, relationship
 from sqlalchemy.sql import expression
 from .database import Base
 
@@ -21,6 +22,8 @@ class WeekMeal(Base):
     cooked_at = Column(DateTime, nullable=True)
     # breakfast|lunch|dinner (enforced in the app); NULL exactly when day_id is NULL.
     slot = Column(String, nullable=True)
+    # Feedback on a cooked row: NULL unrated, True worth repeating, False not worth repeating.
+    worth_repeating = Column(Boolean, nullable=True)
 
     meal = relationship("Meal")
 
@@ -37,6 +40,17 @@ class Meal(Base):
     prep_minutes = Column(Integer, nullable=True)
     cook_minutes = Column(Integer, nullable=True)
     make_ahead = Column(Boolean, nullable=False, default=False, server_default=expression.false())
+
+    # Derived, read-only: the mark on the most recently cooked row of this meal (NULL if unrated).
+    worth_repeating = column_property(
+        select(WeekMeal.worth_repeating)
+        .where(WeekMeal.meal_id == id, WeekMeal.status == "cooked")
+        .order_by(WeekMeal.cooked_at.desc(), WeekMeal.id.desc())
+        .limit(1)
+        .correlate_except(WeekMeal)
+        .scalar_subquery(),
+        deferred=False,
+    )
 
     week_plans = relationship("WeekPlan", secondary="week_meals", back_populates="meals", viewonly=True)
 

@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { getPairings, trackIngredient, removeTrackedIngredient } from '../api';
-import { Button, EmptyState, ErrorState, Input, Select, Skeleton, StatusPill, useToast } from './ui';
+import { Button, EmptyState, ErrorState, Input, RepeatBadge, Select, Skeleton, StatusPill, useToast } from './ui';
 import { AlertIcon, ChevronIcon } from './ui/icons.jsx';
 import './MealPairings.css';
 
@@ -342,6 +342,7 @@ export default function MealPairings({
                       <li key={meal.meal_id} className="meal-pairings__suggestion">
                         <div className="meal-pairings__suggestion-text">
                           <strong className="meal-pairings__meal">{meal.name}</strong>
+                          <RepeatBadge value={meal.worth_repeating} />
                           <span className="meal-pairings__uses">Uses {meal.uses}</span>
                           {meal.extra && <span className="meal-pairings__extra">Needs {meal.extra} more</span>}
                         </div>

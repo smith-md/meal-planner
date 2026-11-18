@@ -20,6 +20,7 @@ class MealCreate(MealBase):
 
 class Meal(MealBase):
     id: int
+    worth_repeating: Optional[bool] = None  # latest cooked mark; null when unrated
 
     class Config:
         from_attributes = True
@@ -71,6 +72,7 @@ class WeekMealSchedule(BaseModel):
     status: str = "planned"
     cooked_servings: Optional[int] = None
     cooked_at: Optional[datetime] = None
+    worth_repeating: Optional[bool] = None
 
     @field_validator("status", mode="before")
     @classmethod
@@ -143,6 +145,10 @@ class WeekMealStatusUpdate(BaseModel):
     status: Literal["planned", "skipped"]
 
 
+class WeekMealWorthRepeating(BaseModel):
+    worth_repeating: Optional[StrictBool] = None  # null clears the mark
+
+
 class CookDeduction(BaseModel):
     item: str
     unit: str
@@ -156,6 +162,7 @@ class CookResult(BaseModel):
     status: str
     cooked_servings: Optional[int] = None
     cooked_at: Optional[datetime] = None
+    worth_repeating: Optional[bool] = None
     day_id: Optional[int] = None
     replayed: bool
     deductions: List[CookDeduction]
@@ -220,6 +227,7 @@ class PairingSuggestion(BaseModel):
     uses: str
     extra: str
     needs_more: bool = False
+    worth_repeating: Optional[bool] = None
 
 
 class PairingIngredient(BaseModel):
@@ -585,6 +593,7 @@ class StockSuggestion(BaseModel):
     meal_id: int
     name: str
     servings: Optional[int] = None
+    worth_repeating: Optional[bool] = None
     coverage_percent: int
     covered_count: int
     ingredient_count: int

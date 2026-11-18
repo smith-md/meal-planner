@@ -139,6 +139,13 @@ fields that changed.
 The Meals Library filters (maximum prep, maximum cook, make-ahead only) run in the
 browser over the `GET /meals` result and need no extra endpoint. They combine with the
 text search, and meals with an unset time are hidden while that time filter is active.
+The "Worth repeating only" filter works the same way: it keeps meals whose
+`worth_repeating` is `true` and composes with the other filters and the search.
+
+Each `Meal` in the `GET /meals` result (and in other meal payloads) has a read-only
+`worth_repeating`: the mark on that meal's most recently cooked week row (`true`,
+`false`), or `null` when that row is unrated or the meal has never been cooked. It
+cannot be set through the meal endpoints; use the week-meal endpoint below.
 
 Example `POST /meals` body:
 
@@ -246,8 +253,9 @@ Removes that meal from the week and returns the updated week plan.
 
 - `PUT /week-plans/{week_plan_id}/meals/{meal_id}/day` with `{ "day_id": 12 }` assigns the meal to a day of that week (400 if the day is in another week); `null` unassigns. Assigning a day sets the slot to `dinner` when the meal has none (an existing slot is kept); unassigning clears the slot. Returns the week plan, or 404 if the meal is not planned there. 409 if already cooked. To choose the slot, use the PATCH above.
 - `PUT /week-plans/{week_plan_id}/meals/{meal_id}/status` with `{ "status": "planned" | "skipped" }`. 409 if already cooked.
-- The week plan's `meal_schedule` lists `{ meal_id, day_id, slot, status, cooked_servings, cooked_at }` per planned meal; `slot` is `breakfast`, `lunch`, `dinner` or `null` (`null` exactly when `day_id` is `null`).
-- `POST /week-plans/{week_plan_id}/meals/{meal_id}/cook` marks the meal cooked and deducts ingredients at the planned servings, which are frozen as `cooked_servings`. 409 if no day is assigned or the meal is skipped. It deducts exactly once; repeats return the stored result with `replayed: true`.
+- `PUT /week-plans/{week_plan_id}/meals/{meal_id}/worth-repeating` with `{ "worth_repeating": true | false | null }` records feedback on a cooked meal: `true` worth repeating, `false` not worth repeating, `null` clears the mark. It returns the week plan. 409 if the meal is not cooked ("Only a cooked meal can be marked worth repeating."), 404 if the meal is not planned in that week, 422 for a value that is not a boolean or `null`. The mark can be changed or cleared later, and sending the same value again is harmless. It never changes stock, the schedule, servings or status.
+- The week plan's `meal_schedule` lists `{ meal_id, day_id, slot, status, cooked_servings, cooked_at, worth_repeating }` per planned meal; `worth_repeating` is that cooked row's own mark (`null` when unrated or not cooked); `slot` is `breakfast`, `lunch`, `dinner` or `null` (`null` exactly when `day_id` is `null`).
+- `POST /week-plans/{week_plan_id}/meals/{meal_id}/cook` marks the meal cooked and deducts ingredients at the planned servings, which are frozen as `cooked_servings`. 409 if no day is assigned or the meal is skipped. It deducts exactly once; repeats return the stored result with `replayed: true`. The result also carries `worth_repeating` (`null` until the cooked meal is rated).
   - Deduction order: fridge, then pantry. Short stock floors at zero; each `deductions` entry has `item`, `unit`, `requested`, `deducted`, `short`. Unparseable lines are in `untracked`.
   - A cooked meal cannot be re-dated, re-skipped, have its servings changed (PATCH), or be removed (DELETE); these return 409.
 - Planning, rescheduling, and skipping never change stock; only cooking does.
@@ -318,7 +326,7 @@ A successful apply returns `entries` (the whole list), a fresh `reconcile`, a `s
 - Candidates are all saved meals except those already in the target week. Each is evaluated against the same pool on its own, so suggestions do not compete with each other. Meals that use none of the pool are omitted.
 - Ranking order: highest mean per-ingredient coverage from stock, then fewest groceries, then more projected uses, then name. At most 10 suggestions are returned.
 - The response has `week_plan_id`, `start_date`, `end_date`, `ref_date`, `position` (`this`, `next`, or `later`), `remainders`, and `suggestions`.
-- Each suggestion has `meal_id`, `name`, `servings`, `coverage_percent`, `covered_count`, `ingredient_count`, `uses`, `groceries`, and `unmeasured`. `uses` entries show the ingredient and quantity used: `key`, `item`, `unit`, `used`, `needed`, `available`, and `source`. `groceries` entries are the additional groceries needed: `key`, `item`, `amount`, `name`, and `partial` (true when stock covers only part of the need). `unmeasured` lists ingredient lines with no parseable quantity; they are shown but not counted.
+- Each suggestion has `meal_id`, `name`, `servings`, `worth_repeating` (the meal's latest cooked mark, `null` when unrated; display only, it does not affect ranking), `coverage_percent`, `covered_count`, `ingredient_count`, `uses`, `groceries`, and `unmeasured`. `uses` entries show the ingredient and quantity used: `key`, `item`, `unit`, `used`, `needed`, `available`, and `source`. `groceries` entries are the additional groceries needed: `key`, `item`, `amount`, `name`, and `partial` (true when stock covers only part of the need). `unmeasured` lists ingredient lines with no parseable quantity; they are shown but not counted.
 - `source` is `confirmed` (stock no planned meal draws on; `locations` lists `fridge` and/or `pantry`) or `projected` (left over after planned meals; `after_meals` lists those meals). For example, half a cabbage left after a planned slaw is a projected remainder that can cover another meal this week or next. `remainders` lists the whole pool (`key`, `item`, `unit`, `amount`, `source`, `locations`, `after_meals`), so a client can tell projected remainders from confirmed stock; the web UI shows them with different badges.
 
 #### Scaling, pairings, and shopping list
@@ -339,6 +347,8 @@ are combined.
   servings recalculates the remaining amount; if planned meals now use more than
   the tracked ingredient provides, `needs_more` becomes true. Each suggestion in
   `current` and `next_week` also carries its own `needs_more` flag.
+- Each pairing suggestion also carries the meal's `worth_repeating` (latest cooked
+  mark, `null` when unrated). It is display only and does not change the suggestions.
 
 #### Database and migration
 
@@ -353,6 +363,10 @@ It also adds the nullable `week_meals.slot` column and backfills it: every plann
 has a day but no slot gets `dinner`. Rows that already have a slot, and meals with no day, are
 left alone, so running it again changes nothing, and no meal, servings, status or cooked
 history is lost.
+
+It also adds the nullable `week_meals.worth_repeating` column (`NULL` unrated, `1` worth
+repeating, `0` not worth repeating). Existing rows, including already cooked ones, stay
+`NULL` (unrated); nothing is backfilled.
 
 ---
 

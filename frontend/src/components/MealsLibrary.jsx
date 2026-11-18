@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { fetchMeals } from '../api';
 import { EMPTY_FILTERS, filterMeals, filtersActive } from '../mealFilters';
-import { Button, Input, EmptyState, ErrorState, Skeleton } from './ui';
+import { Button, Input, EmptyState, ErrorState, RepeatBadge, Skeleton } from './ui';
 import MealDrawer from './MealDrawer';
 import { PlusIcon } from './ui/icons.jsx';
 import './MealsLibrary.css';
@@ -36,6 +36,7 @@ function MealCard({ meal, onEdit }) {
   return (
     <li className="meals-card">
       <h2 className="meals-card__name">{meal.name}</h2>
+      <RepeatBadge value={meal.worth_repeating} />
       {tags.length > 0 && (
         <ul className="meals-card__tags" aria-label="Tags">
           {tags.map((t) => (
@@ -202,6 +203,14 @@ function MealsLibrary() {
               onChange={(e) => setFilters({ ...filters, makeAheadOnly: e.target.checked })}
             />
             <span>Make-ahead only</span>
+          </label>
+          <label className="meals-check">
+            <input
+              type="checkbox"
+              checked={filters.worthRepeatingOnly}
+              onChange={(e) => setFilters({ ...filters, worthRepeatingOnly: e.target.checked })}
+            />
+            <span>Worth repeating only</span>
           </label>
           <Button variant="quiet" onClick={clearFilters} disabled={!anyFilter}>Clear filters</Button>
         </div>
