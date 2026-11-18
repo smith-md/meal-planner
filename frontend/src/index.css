@@ -8,21 +8,12 @@ body {
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--paper);
+  color: var(--ink);
   min-height: 100vh;
-  padding: 0.5rem;
   font-size: 16px;
 }
 
 #root {
   width: 100%;
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-/* Desktop */
-@media (min-width: 1024px) {
-  body {
-    padding: 1.25rem;
-  }
 }
