@@ -1,12 +1,12 @@
 .stock-suggestions {
-  border-top: 1px solid #ddd;
+  border-top: 1px solid var(--stock-line);
   padding-top: 1rem;
 }
 
 .stock-suggestions article {
   margin-top: 1rem;
   padding: 1rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--stock-line);
   border-radius: 8px;
 }
 
@@ -41,7 +41,7 @@
 }
 
 .stock-suggestions h3:focus {
-  outline: 2px solid #1a73e8;
+  outline: 2px solid var(--focus-alt);
   outline-offset: 2px;
 }
 
@@ -60,13 +60,13 @@
 
 /* Distinguished by text and border style as well as colour. */
 .stock-confirmed {
-  border: 2px solid #2e7d32;
-  background: #e8f5e9;
+  border: 2px solid var(--stock-ok);
+  background: var(--stock-ok-bg);
 }
 
 .stock-projected {
-  border: 2px dashed #8a5a00;
-  background: #fff4e0;
+  border: 2px dashed var(--stock-warn);
+  background: var(--stock-warn-bg);
 }
 
 /* Planner shell */

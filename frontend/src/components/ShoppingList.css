@@ -540,8 +540,7 @@
   position: fixed;
   inset: 0;
   z-index: 40; /* above the undo bar (30) so the sheet actions stay reachable */
-  background: var(--ink);
-  opacity: 0.4;
+  background: var(--scrim-review);
 }
 
 .review-sheet {
