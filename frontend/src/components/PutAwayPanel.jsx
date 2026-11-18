@@ -147,7 +147,10 @@ export default function PutAwayPanel({ id, items, defaultsFor, putAway, onBusyCh
                   value={row.quantity}
                   placeholder="e.g. 6 or 2 lb"
                   disabled={busy || row.dest === 'keep'}
-                  onChange={(e) => setRow(item, { quantity: e.target.value })}
+                  onChange={(e) => {
+                    setRow(item, { quantity: e.target.value });
+                    if (errors[item.id]) setErrors(({ [item.id]: _cleared, ...rest }) => rest);
+                  }}
                   aria-invalid={error ? true : undefined}
                   aria-describedby={error ? errorId : undefined}
                 />

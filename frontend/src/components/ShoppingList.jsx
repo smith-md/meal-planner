@@ -1154,7 +1154,10 @@ function ShoppingList({ onOpenPlanner }) {
                 autoFocus
                 value={creditEdit.quantity}
                 placeholder="e.g. 6 or 2 lb"
-                onChange={(e) => setCreditEdit({ ...creditEdit, quantity: e.target.value })}
+                onChange={(e) => {
+                  setCreditEdit({ ...creditEdit, quantity: e.target.value });
+                  if (error && error.id === entry.id) setError(null);
+                }}
                 aria-invalid={error && error.id === entry.id ? true : undefined}
                 aria-describedby={error && error.id === entry.id ? `credit-edit-error-${entry.id}` : undefined}
               />

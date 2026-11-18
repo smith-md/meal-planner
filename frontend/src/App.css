@@ -2,6 +2,20 @@
 /* On :root, not .app-shell: the toast region renders outside the shell and needs it too. */
 :root {
   --nav-height: 64px;
+  /* Room for the sticky Put away bar so keyboard focus is not hidden behind it (WCAG 2.4.11). */
+  --sticky-bar-room: 6rem;
+}
+
+/* Phones: the fixed bottom tab bar and the sticky put-away bar can cover focused controls. */
+html {
+  scroll-padding-bottom: calc(var(--nav-height) + var(--sticky-bar-room) + env(safe-area-inset-bottom, 0px));
+}
+
+/* Side rail from 1024px: only the sticky bar needs room. */
+@media (min-width: 1024px) {
+  html {
+    scroll-padding-bottom: calc(var(--sticky-bar-room) + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 .app-shell {
