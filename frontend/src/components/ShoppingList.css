@@ -18,14 +18,6 @@
   padding-bottom: calc(var(--space-7) + var(--space-6));
 }
 
-.shopping-list__title {
-  margin: 0 0 var(--space-4);
-  font-family: var(--font-heading);
-  font-size: 24px;
-  font-weight: 800;
-  color: var(--ink);
-}
-
 .shopping-list__section-title {
   margin: var(--space-5) 0 var(--space-3);
   font-family: var(--font-heading);
@@ -416,7 +408,7 @@
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  animation: shopping-list-fade-in 180ms ease-out;
+  animation: shopping-list-fade-in var(--dur-in) ease-out;
 }
 
 .shopping-list__item:hover {
@@ -566,7 +558,7 @@
   box-shadow: var(--shadow-float);
 }
 
-.review-sheet h3 {
+.review-sheet h2 {
   margin: 0;
   padding: var(--space-4) var(--space-4) var(--space-2);
   font-family: var(--font-heading);
@@ -575,7 +567,7 @@
   color: var(--ink);
 }
 
-.review-sheet h3:focus {
+.review-sheet h2:focus {
   outline: none;
 }
 
@@ -585,7 +577,7 @@
   padding: 0 var(--space-4);
 }
 
-.review-group h4 {
+.review-group h3 {
   margin: var(--space-3) 0 var(--space-1);
   font-size: 15px;
   color: var(--ink);
@@ -702,10 +694,6 @@
 @media (min-width: 768px) {
   .shopping-list {
     padding: var(--space-5);
-  }
-
-  .shopping-list__title {
-    font-size: 32px;
   }
 
   .shopping-list__review-bar {

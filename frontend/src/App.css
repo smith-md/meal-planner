@@ -42,8 +42,28 @@
   padding: 0 var(--space-2) calc(var(--nav-height) + var(--space-5) + env(safe-area-inset-bottom));
 }
 
-.app-main:focus {
+.app-main:focus,
+.app-title:focus {
   outline: none;
+}
+
+/* The one h1 on every page; it receives focus when the route changes. */
+.app-title {
+  margin: var(--space-2) var(--space-2) var(--space-3);
+  font-family: var(--font-heading);
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+@media (min-width: 768px) {
+  .app-title {
+    margin-left: 0;
+    margin-right: 0;
+    font-size: 36px;
+  }
 }
 
 /* Bottom tab bar */

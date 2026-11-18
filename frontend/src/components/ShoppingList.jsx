@@ -792,7 +792,7 @@ function ShoppingList({ onOpenPlanner }) {
     return (
       <article key={row.key} className="shopping-list__card">
         <div className="shopping-list__card-head">
-          <h4 className="shopping-list__card-title">{row.item}</h4>
+          <h3 className="shopping-list__card-title">{row.item}</h3>
           <Warnings warnings={row.warnings} />
         </div>
         <dl className="shopping-list__figures">
@@ -866,7 +866,7 @@ function ShoppingList({ onOpenPlanner }) {
   const renderStaple = (row) => (
     <article key={row.key} className="shopping-list__card">
       <div className="shopping-list__card-head">
-        <h4 className="shopping-list__card-title">{row.item}</h4>
+        <h3 className="shopping-list__card-title">{row.item}</h3>
         <Warnings warnings={row.warnings} />
       </div>
       <p className="shopping-list__hint">On hand {row.on_hand}, minimum {row.minimum}</p>
@@ -913,7 +913,7 @@ function ShoppingList({ onOpenPlanner }) {
             )}
             {stillToBuy.length > 0 && (
               <div className="shopping-list__group">
-                <h4 className="shopping-list__group-title">Still to buy ({stillToBuy.length})</h4>
+                <h3 className="shopping-list__group-title">Still to buy ({stillToBuy.length})</h3>
                 {stillToBuy.map(renderNeedCard)}
               </div>
             )}
@@ -925,10 +925,10 @@ function ShoppingList({ onOpenPlanner }) {
             )}
             {data.unmeasured.length > 0 && (
               <div className="shopping-list__group">
-                <h4 className="shopping-list__group-title">Unmeasured items ({data.unmeasured.length})</h4>
+                <h3 className="shopping-list__group-title">Unmeasured items ({data.unmeasured.length})</h3>
                 {data.unmeasured.map(line => (
                   <article key={line.line} className="shopping-list__card">
-                    <h4 className="shopping-list__card-title">{line.line}</h4>
+                    <h3 className="shopping-list__card-title">{line.line}</h3>
                     <p className="shopping-list__hint">For: {mealsSummary(line.meals)}</p>
                     {line.note && <p className="shopping-list__hint">{line.note}</p>}
                   </article>
@@ -991,7 +991,7 @@ function ShoppingList({ onOpenPlanner }) {
     if (migration.status !== 'done') {
       return (
         <div className="shopping-list__list-section">
-          <h4 className="shopping-list__group-title">Saved on this device</h4>
+          <h3 className="shopping-list__group-title">Saved on this device</h3>
           <div className="shopping-list__items">
             {migration.local.map(item => (
               <div key={item.id ?? item.name} className="shopping-list__item-wrap">
@@ -1011,7 +1011,7 @@ function ShoppingList({ onOpenPlanner }) {
     return (
       <>
         <div className="shopping-list__list-section">
-          <h4 className="shopping-list__group-title">To buy ({toBuy.length})</h4>
+          <h3 className="shopping-list__group-title">To buy ({toBuy.length})</h3>
           <div className="shopping-list__items">
             {toBuy.length === 0 ? (
               <EmptyState message="Nothing to buy yet. Use Review changes to add what this week needs, or add an item." />
@@ -1023,7 +1023,7 @@ function ShoppingList({ onOpenPlanner }) {
         {purchased.length > 0 && (
           <div className="shopping-list__list-section shopping-list__bought">
             <div className="shopping-list__list-header">
-              <h4 className="shopping-list__group-title">Bought ({purchased.length})</h4>
+              <h3 className="shopping-list__group-title">Bought ({purchased.length})</h3>
               <Button variant="danger-quiet" onClick={clearPurchased} disabled={busyId !== null}>
                 Clear bought ({purchased.length})
               </Button>
@@ -1037,8 +1037,6 @@ function ShoppingList({ onOpenPlanner }) {
 
   return (
     <div className={undo ? 'shopping-list shopping-list--has-undo' : 'shopping-list'}>
-      <h2 className="shopping-list__title">Shopping</h2>
-
       {migration.status === 'failed' && (
         <div className="shopping-list__banner" role="alert">
           <p className="shopping-list__banner-text">
@@ -1108,18 +1106,18 @@ function ShoppingList({ onOpenPlanner }) {
       )}
 
       <section className="shopping-list__section" aria-label={`Needs for ${weekName}`}>
-        <h3 className="shopping-list__section-title">Needs for {weekName}</h3>
+        <h2 className="shopping-list__section-title">Needs for {weekName}</h2>
         {renderNeeds()}
       </section>
 
       {data && data.staples.length > 0 && (
         <section className="shopping-list__section" aria-label="Staples">
-          <h3 className="shopping-list__section-title">Staples ({data.staples.length})</h3>
+          <h2 className="shopping-list__section-title">Staples ({data.staples.length})</h2>
           {data.staples.map(renderStaple)}
         </section>
       )}
 
-      <h3 className="shopping-list__section-title">Shopping list (all weeks)</h3>
+      <h2 className="shopping-list__section-title">Shopping list (all weeks)</h2>
       {renderChecklist()}
 
       <div className="shopping-list__add" role="group" aria-label="Add item">

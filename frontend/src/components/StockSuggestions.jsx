@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getStockSuggestions } from '../api';
+import { Button, ErrorState, Skeleton } from './ui';
 
 function afterText(meals) {
   return meals.map(meal => (meal.day ? `${meal.name} (${meal.day})` : meal.name)).join(', ');
@@ -17,16 +18,23 @@ export default function StockSuggestions({ week, onAdd }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [fetching, setFetching] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const headingRef = useRef(null);
+  const request = useRef(0);
+
+  const load = useCallback(() => {
+    const id = ++request.current;
+    setFetching(true);
+    setLoadError('');
+    getStockSuggestions(week.id)
+      .then(data => { if (id === request.current) { setResult(data); setError(''); setFetching(false); } })
+      .catch(err => { if (id === request.current) { setLoadError(err.message); setFetching(false); } });
+  }, [week]);
 
   useEffect(() => {
-    let active = true;
-    setFetching(true);
-    getStockSuggestions(week.id)
-      .then(data => { if (active) { setResult(data); setError(''); setFetching(false); } })
-      .catch(err => { if (active) { setError(err.message); setFetching(false); } });
-    return () => { active = false; };
-  }, [week]);
+    load();
+    return () => { request.current += 1; };
+  }, [load]);
 
   const label = result && result.position === 'this' ? 'this week'
     : result && result.position === 'next' ? 'next week' : 'this planned week';
@@ -55,6 +63,16 @@ export default function StockSuggestions({ week, onAdd }) {
       <h3 id="stock-heading" tabIndex={-1} ref={headingRef}>Cook from what you have</h3>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
+      {!result && !loadError && <Skeleton rows={2} label="Loading suggestions from your stock" />}
+      {!result && loadError && (
+        <ErrorState message={`Could not load suggestions from your stock. ${loadError}`} retryLabel="Retry" onRetry={load} />
+      )}
+      {result && loadError && (
+        <div role="alert">
+          <p>{loadError}</p>
+          <Button variant="secondary" onClick={load}>Retry</Button>
+        </div>
+      )}
       {result && result.suggestions.length === 0 && !error && (
         <p>
           {result.remainders && result.remainders.length > 0

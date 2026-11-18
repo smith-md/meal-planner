@@ -65,6 +65,14 @@ export function PlusIcon(props) {
   )
 }
 
+export function ChevronIcon(props) {
+  return (
+    <Svg {...props}>
+      <path d="m6 9 6 6 6-6" />
+    </Svg>
+  )
+}
+
 export function InboxIcon(props) {
   return (
     <Svg {...props}>

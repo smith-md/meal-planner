@@ -20,7 +20,7 @@
   color: var(--ink);
   font-family: var(--font-body);
   box-shadow: var(--shadow-float);
-  animation: drawer-in 180ms ease-out;
+  animation: drawer-in var(--dur-in) ease-out;
   overflow-wrap: anywhere;
 }
 
