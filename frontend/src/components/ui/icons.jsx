@@ -47,6 +47,16 @@ export function WarnIcon(props) {
   )
 }
 
+export function InfoIcon(props) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5" />
+      <path d="M12 7.5v.01" />
+    </Svg>
+  )
+}
+
 export function CloseIcon(props) {
   return (
     <Svg {...props}>

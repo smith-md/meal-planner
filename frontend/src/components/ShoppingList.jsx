@@ -4,12 +4,10 @@ import {
   getInventory,
   recordPurchase,
   revertPurchase,
-  listGroceryEntries,
   createGroceryEntry,
   updateGroceryEntry,
   deleteGroceryEntry,
   clearPurchasedEntries,
-  importLocalEntries,
   undoGroceryChanges,
   getReconcile,
   applyReconcile,
@@ -17,6 +15,7 @@ import {
   setPackageSize
 } from '../api';
 import ReviewChanges from './ReviewChanges';
+import { useGroceryEntries } from './GroceryEntriesContext';
 import Button from './ui/Button.jsx';
 import { EmptyState, ErrorState, Skeleton } from './ui/States.jsx';
 import StatusPill from './ui/StatusPill.jsx';
@@ -24,9 +23,6 @@ import { AlertIcon, CheckIcon, CloseIcon, PlusIcon } from './ui/icons.jsx';
 import './ShoppingList.css';
 
 const HAS_QUANTITY = /^\s*[\d½¼¾⅓⅔⅛]/;
-const LOCAL_KEY = 'shoppingList';
-const BACKUP_KEY = 'shoppingList.migrated';
-const IMPORT_CHUNK = 500;
 
 function newId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
@@ -40,19 +36,6 @@ function idSlug(key) {
   let hash = 5381;
   for (let i = 0; i < key.length; i += 1) hash = ((hash * 33) ^ key.charCodeAt(i)) >>> 0;
   return `${slug || 'row'}-${hash.toString(36)}`;
-}
-
-// The list used to live only in this browser. Returns the raw text and the usable entries.
-function readLocalList() {
-  try {
-    const raw = localStorage.getItem(LOCAL_KEY);
-    if (!raw) return { raw: null, items: [], valid: false };
-    const saved = JSON.parse(raw);
-    if (!Array.isArray(saved)) return { raw, items: [], valid: false };
-    return { raw, items: saved.filter(item => item && typeof item.name === 'string'), valid: true };
-  } catch (error) {
-    return { raw: null, items: [], valid: false };
-  }
 }
 
 // The amount to credit if it is known, e.g. "2 cups flour". Null when the quantity is missing.
@@ -263,10 +246,10 @@ function PackageSizeEditor({ row, onSaved, onClose }) {
 }
 
 function ShoppingList({ onOpenPlanner }) {
-  const [entries, setEntries] = useState([]);
-  const [listState, setListState] = useState('loading'); // loading | ready | error
-  const [listError, setListError] = useState('');
-  const [migration, setMigration] = useState({ status: 'running', local: [], message: '' }); // running | failed | done
+  const {
+    entries, setEntries, refreshEntries, listState, listError, setListError,
+    migration, retryMigration, notice, clearNotice, refreshKitchenStatus
+  } = useGroceryEntries();
   const [weeks, setWeeks] = useState(null); // { this, next }
   const [weeksError, setWeeksError] = useState('');
   const [selected, setSelected] = useState('this');
@@ -304,17 +287,6 @@ function ShoppingList({ onOpenPlanner }) {
     }
   }, []);
 
-  const refreshEntries = useCallback(async () => {
-    try {
-      setEntries(await listGroceryEntries());
-      setListState('ready');
-      setListError('');
-    } catch (err) {
-      setListState(state => (state === 'ready' ? state : 'error'));
-      setListError(err.message);
-    }
-  }, []);
-
   // Quiet reloads keep the figures on screen, so the page does not jump after an action.
   const loadRecon = useCallback(async (weekId, quiet = false) => {
     const ticket = ++reconTicket.current;
@@ -333,35 +305,17 @@ function ShoppingList({ onOpenPlanner }) {
 
   const refreshAfterChange = (weekId) => {
     refreshInventory();
+    refreshKitchenStatus();
     if (weekId) loadRecon(weekId, true);
   };
 
-  // Move the browser-only list to the server once; keep a backup of what was moved.
-  const startup = useCallback(async () => {
-    const local = readLocalList();
-    if (local.items.length > 0) {
-      setMigration({ status: 'running', local: local.items, message: '' });
-      try {
-        // The server accepts at most IMPORT_CHUNK rows per request; keys make each chunk idempotent.
-        let imported = [];
-        for (let start = 0; start < local.items.length; start += IMPORT_CHUNK) {
-          imported = await importLocalEntries(local.items.slice(start, start + IMPORT_CHUNK));
-        }
-        localStorage.setItem(BACKUP_KEY, local.raw);
-        localStorage.removeItem(LOCAL_KEY);
-        setEntries(imported);
-        setListState('ready');
-        setMigration({ status: 'done', local: [], message: '' });
-        setFlash('Your saved list was moved.');
-      } catch (err) {
-        setMigration({ status: 'failed', local: local.items, message: err.message });
-      }
-      return;
+  // The browser-only list is moved to the server by GroceryEntriesProvider before entries load.
+  useEffect(() => {
+    if (notice) {
+      setFlash(notice);
+      clearNotice();
     }
-    if (local.valid) localStorage.removeItem(LOCAL_KEY); // an empty list needs no migration
-    setMigration({ status: 'done', local: [], message: '' });
-    await refreshEntries();
-  }, [refreshEntries]);
+  }, [notice, clearNotice]);
 
   const loadWeeks = useCallback(async () => {
     setWeeksError('');
@@ -375,10 +329,9 @@ function ShoppingList({ onOpenPlanner }) {
   }, []);
 
   useEffect(() => {
-    startup();
     loadWeeks();
     refreshInventory();
-  }, [startup, loadWeeks, refreshInventory]);
+  }, [loadWeeks, refreshInventory]);
 
   useEffect(() => {
     if (weeks) loadRecon(weeks[selected].id);
@@ -1044,7 +997,7 @@ function ShoppingList({ onOpenPlanner }) {
             <span>Could not move your saved list to the new storage. Your items are safe on this device.</span>
           </p>
           <p className="shopping-list__hint">{migration.message}</p>
-          <Button variant="secondary" onClick={startup}>Retry</Button>
+          <Button variant="secondary" onClick={retryMigration}>Retry</Button>
         </div>
       )}
 

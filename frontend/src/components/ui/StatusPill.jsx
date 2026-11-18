@@ -1,7 +1,7 @@
-import { AlertIcon, CheckIcon, WarnIcon } from './icons.jsx'
+import { AlertIcon, CheckIcon, InfoIcon, WarnIcon } from './icons.jsx'
 import './StatusPill.css'
 
-const ICONS = { ok: CheckIcon, warn: WarnIcon, danger: AlertIcon }
+const ICONS = { ok: CheckIcon, warn: WarnIcon, danger: AlertIcon, neutral: InfoIcon }
 
 // Always shows an icon plus text, so color is never the only cue.
 export default function StatusPill({ status = 'ok', children }) {

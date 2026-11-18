@@ -1,0 +1,41 @@
+.ui-segmented {
+  display: inline-flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-xl);
+  background: var(--surface-sunk);
+  border: 1px solid var(--line);
+}
+
+.ui-segmented__option {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-xl);
+  background: transparent;
+  color: var(--ink-muted);
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background var(--dur-hover) var(--ease-out), color var(--dur-hover) var(--ease-out);
+}
+
+.ui-segmented__option--on {
+  background: var(--green);
+  color: var(--surface);
+  font-weight: 800;
+}
+
+.ui-segmented__option:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-segmented__option {
+    transition: none;
+  }
+}

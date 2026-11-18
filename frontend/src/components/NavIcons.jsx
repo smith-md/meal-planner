@@ -26,3 +26,10 @@ export const ShopIcon = () => (
     <path d="m3 17 2 2 4-4M3 7l2 2 4-4M13 6h8M13 12h8M13 18h8" />
   </Icon>
 );
+
+export const KitchenIcon = () => (
+  <Icon>
+    <rect x="5" y="2" width="14" height="20" rx="2" />
+    <path d="M5 10h14M9 6v1M9 14v3" />
+  </Icon>
+);

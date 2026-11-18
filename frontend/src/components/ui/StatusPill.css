@@ -22,6 +22,10 @@
   background: var(--warn-bg);
   color: var(--warn);
 }
+.ui-pill--neutral {
+  background: var(--tint-blue);
+  color: var(--ink-on-tint);
+}
 .ui-pill--danger {
   background: var(--danger-bg);
   color: var(--danger);
