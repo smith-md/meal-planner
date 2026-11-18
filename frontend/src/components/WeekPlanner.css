@@ -677,3 +677,13 @@
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   }
 }
+
+.planned-meal__repeat {
+  flex-wrap: wrap;
+  align-self: flex-start;
+}
+
+.planned-meal__repeat .ui-segmented__option {
+  padding-inline: var(--space-3);
+  font-size: 14px;
+}

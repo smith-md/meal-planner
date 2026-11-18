@@ -133,6 +133,12 @@ def set_week_meal_status(week_plan_id: int, meal_id: int, data: schemas.WeekMeal
     return crud.set_week_meal_status(db, week_plan_id, meal_id, data.status)
 
 
+@app.put("/week-plans/{week_plan_id}/meals/{meal_id}/worth-repeating", response_model=schemas.WeekPlan)
+def set_week_meal_worth_repeating(week_plan_id: int, meal_id: int, data: schemas.WeekMealWorthRepeating,
+                                  db: Session = Depends(get_db)):
+    return crud.set_week_meal_worth_repeating(db, week_plan_id, meal_id, data.worth_repeating)
+
+
 @app.post("/week-plans/{week_plan_id}/meals/{meal_id}/cook", response_model=schemas.CookResult)
 def cook_week_meal(week_plan_id: int, meal_id: int, db: Session = Depends(get_db)):
     return inventory.cook_week_meal(db, week_plan_id, meal_id)

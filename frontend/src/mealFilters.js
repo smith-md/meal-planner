@@ -1,6 +1,6 @@
 // Pure meal-library filtering, kept free of React so it is easy to reason about.
 
-export const EMPTY_FILTERS = { maxPrep: '', maxCook: '', makeAheadOnly: false };
+export const EMPTY_FILTERS = { maxPrep: '', maxCook: '', makeAheadOnly: false, worthRepeatingOnly: false };
 
 export function matchesSearch(meal, term) {
   const needle = term.toLowerCase();
@@ -25,7 +25,8 @@ export function filterMeals(meals, searchTerm, filters) {
       matchesSearch(meal, searchTerm) &&
       withinLimit(meal.prep_minutes, filters.maxPrep) &&
       withinLimit(meal.cook_minutes, filters.maxCook) &&
-      (!filters.makeAheadOnly || meal.make_ahead === true)
+      (!filters.makeAheadOnly || meal.make_ahead === true) &&
+      (!filters.worthRepeatingOnly || meal.worth_repeating === true)
   );
 }
 
@@ -34,6 +35,7 @@ export function filtersActive(searchTerm, filters) {
     searchTerm !== '' ||
     filters.maxPrep !== '' ||
     filters.maxCook !== '' ||
-    filters.makeAheadOnly
+    filters.makeAheadOnly ||
+    filters.worthRepeatingOnly
   );
 }

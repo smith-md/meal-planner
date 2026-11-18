@@ -1,5 +1,6 @@
 """Tests for assigning meals to days and cooking them (issue #4, AC1-AC5)."""
 import sqlite3
+from datetime import datetime
 
 from sqlalchemy import create_engine, inspect
 from fastapi.testclient import TestClient
@@ -8,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 from app import inventory, models, schemas
 from app.database import SessionLocal, ensure_columns
 from app.main import app
-from test_api_servings import WEEK, NEXT_WEEK, make_meal, week, plan
+from test_api_servings import WEEK, NEXT_WEEK, make_meal, week, plan, pairings, track
 from test_inventory import buy, stock
 
 
@@ -392,3 +393,230 @@ def test_zeroed_item_then_purchase_revert_stays_empty(client):  # AC5
     assert client.put(f"/inventory/{item['id']}", json={"quantity": "0"}).status_code == 200
     assert client.delete("/inventory/purchases/purchase-0001").status_code == 200
     assert stock(client) == []
+
+
+# --- Worth-repeating feedback (issue #43) ---
+
+def mark(client, week_id, meal_id, value):
+    return client.put(f"/week-plans/{week_id}/meals/{meal_id}/worth-repeating",
+                      json={"worth_repeating": value})
+
+
+def meal_payload(client, meal_id):
+    return next(m for m in client.get("/meals").json() if m["id"] == meal_id)
+
+
+def test_mark_requires_cooked_row(client):  # AC2
+    w, meal = scheduled_meal(client)
+    assert mark(client, w["id"], meal["id"], True).status_code == 409
+    assert set_status(client, w["id"], meal["id"], "skipped").status_code == 200
+    assert mark(client, w["id"], meal["id"], False).status_code == 409
+    assert schedule(client, w["id"])[meal["id"]]["worth_repeating"] is None
+    other = make_meal(client, "Stew", "1 cup rice")
+    assert mark(client, w["id"], other["id"], True).status_code == 404
+
+
+def test_cook_without_mark_is_unrated_and_distinct_from_false(client):  # AC3
+    w, meal = scheduled_meal(client)
+    body = cook(client, w["id"], meal["id"]).json()
+    assert body["status"] == "cooked" and body["worth_repeating"] is None
+    assert schedule(client, w["id"])[meal["id"]]["worth_repeating"] is None
+    assert meal_payload(client, meal["id"])["worth_repeating"] is None
+    assert mark(client, w["id"], meal["id"], False).status_code == 200
+    assert schedule(client, w["id"])[meal["id"]]["worth_repeating"] is False
+    assert meal_payload(client, meal["id"])["worth_repeating"] is False
+
+
+def test_mark_set_change_clear_and_persist(client):  # AC1, AC5, AC7
+    w, meal = scheduled_meal(client)
+    assert cook(client, w["id"], meal["id"]).status_code == 200
+    response = mark(client, w["id"], meal["id"], True)
+    assert response.status_code == 200
+    assert response.json()["meal_schedule"][0]["worth_repeating"] is True
+    assert meal_payload(client, meal["id"])["worth_repeating"] is True
+    assert cook(client, w["id"], meal["id"]).json()["worth_repeating"] is True  # replay shows it
+    assert mark(client, w["id"], meal["id"], False).json()["meal_schedule"][0]["worth_repeating"] is False
+    assert mark(client, w["id"], meal["id"], None).json()["meal_schedule"][0]["worth_repeating"] is None
+    assert meal_payload(client, meal["id"])["worth_repeating"] is None
+    assert mark(client, w["id"], meal["id"], "yes").status_code == 422
+
+
+def test_mark_rejects_non_boolean_values_and_unknown_week(client):  # AC2, AC10 (F1: StrictBool)
+    w, meal = scheduled_meal(client)
+    assert cook(client, w["id"], meal["id"]).status_code == 200
+    assert mark(client, w["id"], meal["id"], True).status_code == 200
+    for bad in (1, 0, "true", "yes"):
+        assert mark(client, w["id"], meal["id"], bad).status_code == 422, bad
+    assert schedule(client, w["id"])[meal["id"]]["worth_repeating"] is True  # unchanged by rejected writes
+    assert mark(client, w["id"] + 999, meal["id"], True).status_code == 404
+
+
+def test_mark_is_idempotent_and_leaves_row_and_stock_alone(client):  # AC6
+    buy(client, "purchase-0001", "1 cup rice")
+    w, meal = scheduled_meal(client, ingredients="1/2 cup rice", servings=2)
+    assert cook(client, w["id"], meal["id"]).status_code == 200
+    before = schedule(client, w["id"])[meal["id"]]
+    stock_before, consumptions_before = stock(client), consumption_rows()
+    for _ in range(2):
+        assert mark(client, w["id"], meal["id"], True).status_code == 200
+    after = schedule(client, w["id"])[meal["id"]]
+    assert after.pop("worth_repeating") is True
+    before.pop("worth_repeating")
+    assert after == before
+    assert stock(client) == stock_before
+    assert consumption_rows() == consumptions_before
+
+
+def test_meal_value_is_latest_cooked_mark(client):  # AC5
+    meal = make_meal(client, "Soup", "1/2 cup rice")
+    first, second = week(client), week(client, NEXT_WEEK)
+    for w in (first, second):
+        plan(client, w["id"], meal["id"])
+        assert assign(client, w["id"], meal["id"], w["days"][0]["id"]).status_code == 200
+        assert cook(client, w["id"], meal["id"]).status_code == 200
+    assert mark(client, first["id"], meal["id"], True).status_code == 200
+    assert meal_payload(client, meal["id"])["worth_repeating"] is None  # latest cooking is unrated
+    assert mark(client, second["id"], meal["id"], False).status_code == 200
+    assert meal_payload(client, meal["id"])["worth_repeating"] is False
+
+
+def test_meal_value_ignores_newer_uncooked_rows(client):  # AC5 (F7)
+    meal = make_meal(client, "Soup", "1/2 cup rice")
+    first, second = week(client), week(client, NEXT_WEEK)
+    plan(client, first["id"], meal["id"])
+    assert assign(client, first["id"], meal["id"], first["days"][0]["id"]).status_code == 200
+    assert cook(client, first["id"], meal["id"]).status_code == 200
+    assert mark(client, first["id"], meal["id"], True).status_code == 200
+    plan(client, second["id"], meal["id"])  # newer week, planned but not cooked
+    assert meal_payload(client, meal["id"])["worth_repeating"] is True
+    assert set_status(client, second["id"], meal["id"], "skipped").status_code == 200
+    assert meal_payload(client, meal["id"])["worth_repeating"] is True
+    # Even a stray mark and a newer timestamp on the non-cooked row must not be picked up.
+    session = SessionLocal()
+    try:
+        row = session.query(models.WeekMeal).filter_by(week_plan_id=second["id"], meal_id=meal["id"]).one()
+        assert row.status == "skipped"
+        row.worth_repeating = False
+        row.cooked_at = datetime(2999, 1, 1)
+        session.commit()
+    finally:
+        session.close()
+    assert meal_payload(client, meal["id"])["worth_repeating"] is True
+
+
+def test_meal_value_tie_on_cooked_at_uses_higher_id(client):  # AC5 (F7)
+    meal = make_meal(client, "Soup", "1/2 cup rice")
+    first, second = week(client), week(client, NEXT_WEEK)
+    for w in (first, second):
+        plan(client, w["id"], meal["id"])
+        assert assign(client, w["id"], meal["id"], w["days"][0]["id"]).status_code == 200
+        assert cook(client, w["id"], meal["id"]).status_code == 200
+    assert mark(client, first["id"], meal["id"], True).status_code == 200
+    assert mark(client, second["id"], meal["id"], False).status_code == 200
+    session = SessionLocal()
+    try:
+        rows = session.query(models.WeekMeal).order_by(models.WeekMeal.id).all()
+        assert len(rows) == 2
+        for row in rows:
+            row.cooked_at = rows[0].cooked_at
+        session.commit()
+    finally:
+        session.close()
+    assert meal_payload(client, meal["id"])["worth_repeating"] is False  # higher id wins the tie
+
+
+def test_worth_repeating_column_is_added_idempotently(tmp_path):  # AC4
+    path = tmp_path / "old.db"
+    connection = sqlite3.connect(path)
+    connection.executescript("""
+        CREATE TABLE meals (id INTEGER PRIMARY KEY, name VARCHAR, notes VARCHAR, tags VARCHAR, ingredients VARCHAR);
+        CREATE TABLE week_meals (id INTEGER PRIMARY KEY, week_plan_id INTEGER, meal_id INTEGER,
+                                 status VARCHAR, cooked_servings INTEGER, cooked_at DATETIME);
+        INSERT INTO meals (name, ingredients) VALUES ('Old', '1 cup rice');
+        INSERT INTO week_meals (week_plan_id, meal_id, status) VALUES (1, 1, 'cooked');
+    """)
+    connection.commit()
+    connection.close()
+
+    engine = create_engine(f"sqlite:///{path}")
+    ensure_columns(engine)
+    ensure_columns(engine)
+    # F2: exactly one column after the second call, and the legacy row is neither lost nor duplicated
+    assert [c["name"] for c in inspect(engine).get_columns("week_meals")].count("worth_repeating") == 1
+    with engine.connect() as raw:
+        assert [c[1] for c in raw.exec_driver_sql("PRAGMA table_info(week_meals)")].count("worth_repeating") == 1
+        assert raw.exec_driver_sql("SELECT COUNT(*) FROM week_meals").scalar() == 1
+    session = sessionmaker(bind=engine)()
+    row = session.query(models.WeekMeal).one()
+    assert row.status == "cooked" and row.worth_repeating is None
+    assert schemas.WeekMealSchedule.model_validate(row).worth_repeating is None
+    session.close()
+    engine.dispose()
+
+
+def test_suggestions_carry_mark_without_changing_order(client):  # AC9
+    buy(client, "purchase-0001", "4 cups rice")
+    first = make_meal(client, "Alpha rice", "1 cup rice")
+    second = make_meal(client, "Beta rice", "1 cup rice")
+    w, next_w = week(client), week(client, NEXT_WEEK)
+    for cooked in (first, second):
+        plan(client, w["id"], cooked["id"])
+        assert assign(client, w["id"], cooked["id"], w["days"][0]["id"]).status_code == 200
+        assert cook(client, w["id"], cooked["id"]).status_code == 200
+
+    def suggestions():
+        body = client.get(f"/week-plans/{next_w['id']}/stock-suggestions", params={"ref_date": NEXT_WEEK}).json()
+        return [(s["meal_id"], s["worth_repeating"]) for s in body["suggestions"]]
+
+    unmarked = suggestions()
+    assert {meal_id for meal_id, _ in unmarked} == {first["id"], second["id"]}
+    assert all(mark_ is None for _, mark_ in unmarked)
+    # F5/F6: mark the meal that sorts second (Beta) true and the first (Alpha) false, so a bias
+    # toward marked or unmarked meals in either direction would reorder the list.
+    assert [meal_id for meal_id, _ in unmarked] == [first["id"], second["id"]]
+    assert mark(client, w["id"], second["id"], True).status_code == 200
+    assert mark(client, w["id"], first["id"], False).status_code == 200
+    marked = suggestions()
+    assert [meal_id for meal_id, _ in marked] == [meal_id for meal_id, _ in unmarked]
+    assert dict(marked) == {first["id"]: False, second["id"]: True}
+    # Swap the marks: a bias in the opposite direction must not reorder either.
+    assert mark(client, w["id"], second["id"], False).status_code == 200
+    assert mark(client, w["id"], first["id"], True).status_code == 200
+    swapped = suggestions()
+    assert [meal_id for meal_id, _ in swapped] == [meal_id for meal_id, _ in unmarked]
+    assert dict(swapped) == {first["id"]: True, second["id"]: False}
+
+
+def test_pairings_carry_mark_without_changing_order(client):  # AC9 (F5/F6)
+    w = week(client)
+    prior = week(client, "2025-12-29")
+    alpha = make_meal(client, "Alpha rice", "1/2 cup rice")
+    beta = make_meal(client, "Beta rice", "1/2 cup rice")
+    gamma = make_meal(client, "Gamma rice", "1/2 cup rice")
+    for cooked in (alpha, beta):
+        plan(client, prior["id"], cooked["id"])
+        assert assign(client, prior["id"], cooked["id"], prior["days"][0]["id"]).status_code == 200
+        assert cook(client, prior["id"], cooked["id"]).status_code == 200
+    track(client, w["id"], "1 cup rice")
+
+    def listed():
+        rows = pairings(client, w["id"])
+        assert len(rows) == 1
+        return [[(s["meal_id"], s["worth_repeating"]) for s in rows[0][key]] for key in ("current", "next_week")]
+
+    unmarked = listed()
+    assert [meal_id for meal_id, _ in unmarked[0]] == [alpha["id"], beta["id"], gamma["id"]]
+    assert unmarked[0] == unmarked[1] and all(mark_ is None for _, mark_ in unmarked[0])
+    assert mark(client, prior["id"], beta["id"], True).status_code == 200
+    assert mark(client, prior["id"], alpha["id"], False).status_code == 200
+    marked = listed()
+    for before, after in zip(unmarked, marked):
+        assert [meal_id for meal_id, _ in after] == [meal_id for meal_id, _ in before]
+    assert dict(marked[0]) == {alpha["id"]: False, beta["id"]: True, gamma["id"]: None}
+    assert dict(marked[1]) == dict(marked[0])
+    assert mark(client, prior["id"], beta["id"], False).status_code == 200
+    assert mark(client, prior["id"], alpha["id"], True).status_code == 200
+    swapped = listed()
+    for before, after in zip(unmarked, swapped):
+        assert [meal_id for meal_id, _ in after] == [meal_id for meal_id, _ in before]
+    assert dict(swapped[0]) == {alpha["id"]: True, beta["id"]: False, gamma["id"]: None}

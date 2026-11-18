@@ -187,6 +187,19 @@ def set_week_meal_status(db: Session, week_plan_id: int, meal_id: int, status: s
     return week_plan
 
 
+def set_week_meal_worth_repeating(db: Session, week_plan_id: int, meal_id: int, worth_repeating: Optional[bool]):
+    """Set, change or clear (None) the feedback on a cooked meal. Never touches stock or schedule."""
+    row = _planned_row(db, week_plan_id, meal_id)
+    if row.status != "cooked":
+        raise HTTPException(409, "Only a cooked meal can be marked worth repeating.")
+    if row.worth_repeating != worth_repeating:
+        row.worth_repeating = worth_repeating
+        db.commit()
+    week_plan = db.query(models.WeekPlan).filter(models.WeekPlan.id == week_plan_id).first()
+    db.refresh(week_plan)
+    return week_plan
+
+
 def remove_meal_from_week(db: Session, week_plan_id: int, meal_id: int):
     week_plan = db.query(models.WeekPlan).filter(models.WeekPlan.id == week_plan_id).first()
     meal = db.query(models.Meal).filter(models.Meal.id == meal_id).first()

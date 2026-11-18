@@ -1,15 +1,24 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   getCurrentWeekPlan, updateDayState, addMealToWeek, moveWeekMeal, removeMealFromWeek, fetchMeals,
-  updateWeekMealServings, setWeekMealStatus, cookWeekMeal
+  updateWeekMealServings, setWeekMealStatus, cookWeekMeal, setWeekMealWorthRepeating
 } from '../api';
 import MealPickerModal from './MealPickerModal';
 import MealDrawer from './MealDrawer';
 import MealPairings from './MealPairings';
 import StockSuggestions from './StockSuggestions';
 import Sheet from './Sheet';
-import { Button, EmptyState, ErrorState, Select, Skeleton, StatusPill } from './ui';
+import { Button, EmptyState, ErrorState, RepeatBadge, SegmentedControl, Select, Skeleton, StatusPill } from './ui';
+
 import './WeekPlanner.css';
+
+const REPEAT_OPTIONS = [
+  { value: 'unrated', label: 'Not rated' },
+  { value: 'yes', label: 'Worth repeating' },
+  { value: 'no', label: 'Not worth repeating' }
+];
+const REPEAT_VALUES = { unrated: null, yes: true, no: false };
+const repeatKey = value => (value === true ? 'yes' : value === false ? 'no' : 'unrated');
 
 const SLOTS = [
   { id: 'breakfast', label: 'Breakfast' },
@@ -104,7 +113,7 @@ function ServingsInput({ meal, servings, onCommit, disabled }) {
 
 // One planned meal with all of its actions. Used in the slot rows and in the unplaced list.
 function PlannedMealCard({
-  entry, day, placed, message, moveButtonRef, onServings, onCook, onSkipToggle, onRemove, onMove, onPairing,
+  entry, day, placed, message, moveButtonRef, onServings, onCook, onSkipToggle, onRemove, onMove, onPairing, onRepeat,
   dragging, onDragStart, onDragEnd
 }) {
   const { meal, schedule, servings } = entry;
@@ -125,6 +134,7 @@ function PlannedMealCard({
             {`Cooked${day ? ` ${day.day_name}` : ''}${schedule.cooked_servings != null ? ` (${schedule.cooked_servings} servings)` : ''}`}
           </StatusPill>
         )}
+        {cooked && <RepeatBadge value={schedule.worth_repeating} />}
         {skipped && <StatusPill status="warn">Skipped</StatusPill>}
       </div>
       {meal.tags && <span className="planned-meal__tags">{meal.tags}</span>}
@@ -136,6 +146,15 @@ function PlannedMealCard({
         onCommit={onServings}
         disabled={cooked}
       />
+      {cooked && (
+        <SegmentedControl
+          className="planned-meal__repeat"
+          label={`Worth repeating feedback for ${meal.name}`}
+          options={REPEAT_OPTIONS}
+          value={repeatKey(schedule.worth_repeating)}
+          onChange={key => onRepeat(REPEAT_VALUES[key])}
+        />
+      )}
       <div className="planned-meal__actions">
         {!cooked && (
           <Button
@@ -529,6 +548,11 @@ function WeekPlanner() {
   const handleSkipToggle = (meal, schedule) => runMealAction(meal.id, () =>
     setWeekMealStatus(weekPlan.id, meal.id, schedule.status === 'skipped' ? 'planned' : 'skipped'));
 
+  const handleRepeat = (meal, schedule, value) => {
+    if (value === (schedule.worth_repeating ?? null)) return Promise.resolve(true);
+    return runMealAction(meal.id, () => setWeekMealWorthRepeating(weekPlan.id, meal.id, value));
+  };
+
   const handleCook = async ({ meal, schedule, servings }) => {
     const day = weekPlan.days.find(d => d.id === schedule.day_id);
     const what = servings != null ? `${servings} servings of ${meal.name}` : meal.name;
@@ -638,6 +662,7 @@ function WeekPlanner() {
         onServings={handleServingsChange}
         onCook={() => handleCook(entry)}
         onSkipToggle={() => handleSkipToggle(entry.meal, entry.schedule)}
+        onRepeat={value => handleRepeat(entry.meal, entry.schedule, value)}
         onRemove={() => handleRemove(entry)}
         onMove={() => setMoving(mealId)}
         dragging={dragMealId === mealId}

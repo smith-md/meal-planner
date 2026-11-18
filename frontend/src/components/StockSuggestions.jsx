@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getStockSuggestions } from '../api';
-import { Button, ErrorState, Skeleton } from './ui';
+import { Button, ErrorState, RepeatBadge, Skeleton } from './ui';
 
 function afterText(meals) {
   return meals.map(meal => (meal.day ? `${meal.name} (${meal.day})` : meal.name)).join(', ');
@@ -85,6 +85,7 @@ export default function StockSuggestions({ week, onAdd }) {
           <div className="stock-suggestion-head">
             <div>
               <h4>{meal.name}</h4>
+              <RepeatBadge value={meal.worth_repeating} />
               <p>Uses {meal.covered_count} of {meal.ingredient_count} ingredients from stock</p>
             </div>
             <button disabled={busy || fetching} onClick={() => add(meal)}>Add to {label}</button>

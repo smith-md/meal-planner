@@ -525,6 +525,7 @@ def _cook_result(db: Session, week_meal, replayed):
         "status": "cooked",
         "cooked_servings": week_meal.cooked_servings,
         "cooked_at": week_meal.cooked_at,
+        "worth_repeating": week_meal.worth_repeating,
         "day_id": week_meal.day_id,
         "replayed": replayed,
         "deductions": deductions,
