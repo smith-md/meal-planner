@@ -290,6 +290,10 @@ export function getStaples() {
   return request(`${API_BASE_URL}/inventory/staples`, undefined, 'Could not load your staples.');
 }
 
+export function getAvailability() {
+  return request(`${API_BASE_URL}/inventory/availability`, undefined, 'Could not check what planned meals need.');
+}
+
 export function listPackageSizes() {
   return request(`${API_BASE_URL}/package-sizes`, undefined, 'Could not load package sizes.');
 }

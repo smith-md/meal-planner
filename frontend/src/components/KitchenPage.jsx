@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { consumeInventory, getInventory, getStaples, returnInventory, setInventoryQuantity } from '../api';
+import { consumeInventory, getAvailability, getInventory, getStaples, returnInventory, setInventoryQuantity } from '../api';
 import { useGroceryEntries } from './GroceryEntriesContext';
 import {
   Button, EmptyState, ErrorState, InlineEditable, SegmentedControl, Skeleton, StatusPill, useToast
@@ -23,6 +23,9 @@ function tabFromHash() {
 
 const byName = (a, b) => a.item.localeCompare(b.item, undefined, { sensitivity: 'base' }) || a.id - b.id;
 
+// Availability is per ingredient (item + unit group), so every Kitchen row of it gets the pill.
+const shortKey = row => `${row.item}\u0000${row.unit_group}`;
+
 const mealLabel = meal => `${meal.name}${meal.day ? ` (${shortDayName(meal.day)})` : ''}`;
 
 // "1 head on hand, ½ head reserved for Slaw (Tue)". Each meal shows the amount the API gave for it.
@@ -34,7 +37,7 @@ function reservedLine(row) {
   return `${onHand}, ${reserved.join(', ')}`;
 }
 
-function KitchenRow({ row, onCount, onUsedUp, onUse, error, clearError }) {
+function KitchenRow({ row, short, onCount, onUsedUp, onUse, error, clearError }) {
   const [panel, setPanel] = useState(null); // null | 'menu' | 'use'
   const [amount, setAmount] = useState('');
   const [useError, setUseError] = useState('');
@@ -108,6 +111,7 @@ function KitchenRow({ row, onCount, onUsedUp, onUse, error, clearError }) {
 
       <div className="kitchen-row__pills">
         {row.low && (empty ? <StatusPill status="danger">Out</StatusPill> : <StatusPill status="warn">Low</StatusPill>)}
+        {short && <StatusPill status="warn">Needs more</StatusPill>}
         {reserved.length === 1 && <StatusPill status="neutral">{`Reserved for ${mealLabel(reserved[0])}`}</StatusPill>}
         {reserved.length > 1 && <StatusPill status="neutral">{`Reserved for ${reserved.length} meals`}</StatusPill>}
       </div>
@@ -174,11 +178,11 @@ function KitchenRow({ row, onCount, onUsedUp, onUse, error, clearError }) {
   );
 }
 
-function RowList({ rows, errors, clearError, ...handlers }) {
+function RowList({ rows, shortKeys, errors, clearError, ...handlers }) {
   return (
     <ul className="kitchen-list">
       {rows.map(row => (
-        <KitchenRow key={row.id} row={row} error={errors[row.id]} clearError={() => clearError(row.id)} {...handlers} />
+        <KitchenRow key={row.id} row={row} short={shortKeys.has(shortKey(row))} error={errors[row.id]} clearError={() => clearError(row.id)} {...handlers} />
       ))}
     </ul>
   );
@@ -190,6 +194,7 @@ export default function KitchenPage() {
   const [tab, setTab] = useState(tabFromHash);
   const [rows, setRows] = useState(null);
   const [staples, setStaples] = useState(null);
+  const [shortKeys, setShortKeys] = useState(() => new Set()); // ingredients short for planned meals
   const [loadError, setLoadError] = useState('');
   const [staplesFailed, setStaplesFailed] = useState(false);
   const [rowErrors, setRowErrors] = useState({});
@@ -212,7 +217,9 @@ export default function KitchenPage() {
 
   const load = useCallback(async () => {
     const token = ++loadToken.current;
-    const [inventory, stapleList] = await Promise.allSettled([getInventory(), getStaples()]);
+    const [inventory, stapleList, availability] = await Promise.allSettled([
+      getInventory(), getStaples(), getAvailability()
+    ]);
     if (token !== loadToken.current) return false;
     if (stapleList.status === 'fulfilled') {
       setStaples(stapleList.value);
@@ -220,6 +227,10 @@ export default function KitchenPage() {
     } else {
       setStaplesFailed(true);
     }
+    // A failed availability check shows no "Needs more" pill and no error.
+    setShortKeys(availability.status === 'fulfilled' && Array.isArray(availability.value)
+      ? new Set(availability.value.filter(row => row.short).map(shortKey))
+      : new Set());
     if (inventory.status === 'rejected') {
       setLoadError(inventory.reason?.message || 'Could not load the kitchen.');
       return false;
@@ -359,7 +370,7 @@ export default function KitchenPage() {
     await refetch();
   };
 
-  const handlers = { onCount, onUsedUp, onUse, errors: rowErrors, clearError };
+  const handlers = { shortKeys, onCount, onUsedUp, onUse, errors: rowErrors, clearError };
   const { low, rest } = view.current;
   const place = TAB_NAMES[tab].toLowerCase();
   const loading = rows === null && !loadError;

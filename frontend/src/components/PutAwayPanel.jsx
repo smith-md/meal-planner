@@ -13,7 +13,7 @@ const DESTINATIONS = [
 // Inline expanding region (not a dialog) for choosing where each bought item goes.
 // The parent owns the stock and entry changes: putAway(item, amount, dest, previousAttempt)
 // resolves with the saved entry (or null for Keep on list) and throws a readable error on failure.
-export default function PutAwayPanel({ id, items, defaultsFor, putAway, onBusyChange, onClose }) {
+export default function PutAwayPanel({ id, items, defaultsFor, mealTextFor, putAway, onBusyChange, onClose }) {
   const [overrides, setOverrides] = useState({}); // item id -> { quantity?, dest? }
   const [errors, setErrors] = useState({}); // item id -> message
   const [summary, setSummary] = useState('');
@@ -133,10 +133,12 @@ export default function PutAwayPanel({ id, items, defaultsFor, putAway, onBusyCh
           const error = errors[item.id];
           const errorId = `${id}-error-${item.id}`;
           const amountId = `${id}-amount-${item.id}`;
+          const mealText = mealTextFor ? mealTextFor(item) : '';
           const missingQuantity = isStock(row) && row.quantity.trim() === '';
           return (
             <li key={item.id} className="put-away__row">
               <p className="put-away__name">{item.name}</p>
+              {mealText && <p className="put-away__meals">{mealText}</p>}
               <div className="put-away__field">
                 <label className="put-away__label" htmlFor={amountId}>Quantity of {row.name}</label>
                 <input
