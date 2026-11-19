@@ -19,7 +19,7 @@ import { useGroceryEntries } from './GroceryEntriesContext';
 import Button from './ui/Button.jsx';
 import { EmptyState, ErrorState, Skeleton } from './ui/States.jsx';
 import StatusPill from './ui/StatusPill.jsx';
-import { useToast } from './ui/Toast.jsx';
+import { ACTION_TOAST_DURATION_MS, useToast } from './ui/Toast.jsx';
 import UndoHint from './ui/UndoHint.jsx';
 import { UNDO_ARIA_KEYSHORTCUTS, useUndoShortcut } from './ui/useUndoShortcut.js';
 import PutAwayPanel from './PutAwayPanel.jsx';
@@ -450,7 +450,7 @@ function ShoppingList({ onOpenPlanner }) {
 
   useEffect(() => {
     if (!undo) return undefined;
-    const timer = setTimeout(() => setUndo(null), 12000);
+    const timer = setTimeout(() => setUndo(null), ACTION_TOAST_DURATION_MS);
     return () => clearTimeout(timer);
   }, [undo]);
 
