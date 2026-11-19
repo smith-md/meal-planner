@@ -59,6 +59,8 @@ The API will be available at
 
 The app will be available at 
 
+To run the front-end tests (Vitest, React Testing Library and jsdom), run `npm test` in the `frontend` directory. It runs the whole suite once and exits (no watch mode). The test tools need Node.js 22.12 or newer.
+
 ## API Endpoints
 
 -  - Get all meals (optional search parameter)
