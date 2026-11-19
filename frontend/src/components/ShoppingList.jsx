@@ -758,6 +758,8 @@ function ShoppingList({ onOpenPlanner }) {
       toast.show({
         message: `Put away ${credited.length} ${credited.length === 1 ? 'item' : 'items'}`,
         actionLabel: 'Undo',
+        // The control focused when the toast appeared is unmounted by then: fall back to the trigger, then the Bought heading.
+        returnFocus: () => (putAwayTrigger.current?.isConnected ? putAwayTrigger.current : summaryRef.current),
         onAction: async () => {
           focusReverted(credited);
           let failures = 0;
