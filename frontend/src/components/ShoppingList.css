@@ -554,7 +554,7 @@
   position: fixed;
   left: var(--space-3);
   right: var(--space-3);
-  bottom: var(--space-3);
+  bottom: calc(var(--nav-height) + var(--space-2) + env(safe-area-inset-bottom, 0px));
   z-index: 30;
   display: flex;
   align-items: center;
@@ -771,6 +771,24 @@
 
   .review-body {
     max-height: 50vh;
+  }
+}
+
+/* Phones/tablets: stack the undo bar above the sticky Put away bar instead of covering it.
+   Offset = the bar's own bottom offset + its height + a gap. Height is derived from
+   PutAwayPanel.css: 44px button + 2 * var(--space-2) padding + 2px border. */
+@media (max-width: 1023.98px) {
+  .put-away-bar:not(.put-away-bar--open) ~ .shopping-list__undo {
+    bottom: calc(
+      var(--nav-height) + var(--space-2) + env(safe-area-inset-bottom, 0px) +
+        (44px + 2 * var(--space-2) + 2px) + var(--space-2)
+    );
+  }
+}
+
+@media (min-width: 1024px) {
+  .shopping-list__undo {
+    bottom: var(--space-3);
   }
 }
 
