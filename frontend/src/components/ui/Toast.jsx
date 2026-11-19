@@ -6,8 +6,8 @@ import { UNDO_ARIA_KEYSHORTCUTS, useUndoShortcut } from './useUndoShortcut.js'
 import './Toast.css'
 
 export const TOAST_DURATION_MS = 6000
-// Toasts that carry an action (Undo) stay longer, so keyboard users can reach the button.
-export const ACTION_TOAST_DURATION_MS = 12000
+// Toasts that carry an action (Undo) stay longer (30s), so there is time to notice and act on them.
+export const ACTION_TOAST_DURATION_MS = 30000
 
 const ToastContext = createContext(null)
 
