@@ -66,6 +66,8 @@ export function ToastProvider({ children }) {
 
   const regionRef = useRef(null)
   const previousFocus = useRef(null)
+  // Optional resolver from show({ returnFocus }) for when previousFocus has been unmounted.
+  const returnFocus = useRef(null)
 
   // restoreFocus is set only when the user closed the toast (Undo/Dismiss).
   // Timeout dismissal never moves focus.
@@ -75,10 +77,16 @@ export function ToastProvider({ children }) {
       const inToast = active && regionRef.current?.contains(active)
       if (inToast || !active || active === document.body) {
         const target = previousFocus.current
-        if (target && target.isConnected && typeof target.focus === 'function') target.focus()
+        if (target && target.isConnected && typeof target.focus === 'function') {
+          target.focus()
+        } else {
+          const fallback = returnFocus.current?.()
+          if (fallback && fallback.isConnected && typeof fallback.focus === 'function') fallback.focus()
+        }
       }
     }
     previousFocus.current = null
+    returnFocus.current = null
     setToast(null)
   }, [])
   const show = useCallback((options) => {
@@ -89,6 +97,7 @@ export function ToastProvider({ children }) {
     } else {
       previousFocus.current = active
     }
+    returnFocus.current = typeof options?.returnFocus === 'function' ? options.returnFocus : null
     counter.current += 1
     setToast({ ...options, id: counter.current })
   }, [])

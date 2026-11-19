@@ -295,6 +295,10 @@ export default function KitchenPage() {
     toast.show({
       message,
       actionLabel: 'Undo',
+      // The control focused when the toast appeared is unmounted by then; fall back to the row's Adjust button.
+      returnFocus: () =>
+        document.querySelector('[data-kitchen-row="' + row.id + '"] .kitchen-row__adjust > button') ||
+        document.getElementById('page-title'),
       onAction: async () => {
         try {
           await undo();

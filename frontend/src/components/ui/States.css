@@ -35,7 +35,8 @@
 .ui-skeleton__row {
   min-height: 44px;
   border-radius: var(--radius-md);
-  background: var(--surface-sunk);
+  background: var(--surface);
+  border: 1px solid var(--line);
   animation: ui-skeleton-pulse 1200ms ease-out infinite alternate;
 }
 
