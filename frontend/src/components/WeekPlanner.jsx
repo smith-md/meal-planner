@@ -140,6 +140,7 @@ function PlannedMealCard({
   const draggable = placed && !cooked && !!onDragStart;
   return (
     <li
+      data-meal-card={meal.id}
       className={`planned-meal${skipped ? ' is-skipped' : ''}${placed ? '' : ' is-unplaced'}${draggable ? ' is-draggable' : ''}${dragging ? ' is-dragging' : ''}`}
       draggable={draggable || undefined}
       onDragStart={draggable ? onDragStart : undefined}
@@ -655,7 +656,8 @@ function WeekPlanner() {
   const focusMoveFor = useRef(null);
   const focusAfter = useRef(null); // { mealId, selectors } resolved after the next plan render
   const weekToggleRef = useRef(null);
-  const focusWeekToggle = useRef(false); // set by switchWeek, resolved once the button is re-enabled
+  const retryRef = useRef(null);
+  const focusWeekToggle = useRef(null); // 'toggle' or 'retry', set by switchWeek, resolved once loading has finished
   const [visibleSlotIds, setVisibleSlotIds] = useState(loadVisibleSlots);
   const [dragMealId, setDragMealId] = useState(null);
   const [dropKey, setDropKey] = useState(null);
@@ -707,10 +709,13 @@ function WeekPlanner() {
 
   // The toggle is disabled while a week loads (and Retry unmounts on success), so focus would fall
   // to BODY. Return it to the toggle once loading has finished and the button is enabled again.
+  // A failed Retry unmounts and remounts the banner, so focus goes to the new Retry button instead.
   useEffect(() => {
     if (switching || !focusWeekToggle.current) return;
-    focusWeekToggle.current = false;
-    weekToggleRef.current?.focus();
+    const from = focusWeekToggle.current;
+    focusWeekToggle.current = null;
+    if (from === 'retry' && retryRef.current) retryRef.current.focus();
+    else weekToggleRef.current?.focus();
   }, [switching]);
 
   const afterActionTargets = schedule => [
@@ -831,7 +836,16 @@ function WeekPlanner() {
       notes.push(`Not deducted (no measurable amount): ${result.untracked.join(', ')}.`);
     }
     setMealMessage(meal.id, notes.join(' '));
-    focusAfter.current = { mealId: meal.id, selectors: afterActionTargets(schedule) };
+    // The Mark cooked button is gone; the cooked card's new controls take focus: Save leftovers when
+    // it is shown, else the checked option of the feedback radiogroup (roving tabindex 0).
+    focusAfter.current = {
+      mealId: meal.id,
+      selectors: [
+        `[data-save-leftovers="${meal.id}"]`,
+        `[data-meal-card="${meal.id}"] [role="radio"][tabindex="0"]`,
+        ...afterActionTargets(schedule)
+      ]
+    };
     try {
       await reloadWeekPlan();
     } catch (err) {
@@ -892,11 +906,11 @@ function WeekPlanner() {
   };
 
   // While the other week loads the button is disabled and the current week stays on screen.
-  const switchWeek = async () => {
+  const switchWeek = async (fromRetry = false) => {
     setError('');
     setSwitchError(null);
     setSwitching(true);
-    focusWeekToggle.current = true;
+    focusWeekToggle.current = fromRetry ? 'retry' : 'toggle';
     try {
       const current = await getCurrentWeekPlan();
       const plan = nextWeek ? current : await getCurrentWeekPlan(nextWeekStart(current));
@@ -1046,7 +1060,7 @@ function WeekPlanner() {
         <Button
           ref={weekToggleRef}
           variant="secondary"
-          onClick={switchWeek}
+          onClick={() => switchWeek()}
           loading={switching}
           aria-label={switching ? `Loading ${nextWeek ? 'this' : 'next'} week` : undefined}
         >
@@ -1058,7 +1072,7 @@ function WeekPlanner() {
       {switchError && (
         <div className="planner__error planner__error--retry" role="alert">
           <span>Could not load {nextWeek ? 'this' : 'next'} week. {switchError.detail}</span>
-          <Button variant="secondary" onClick={switchWeek}>Retry</Button>
+          <Button ref={retryRef} variant="secondary" onClick={() => switchWeek(true)}>Retry</Button>
         </div>
       )}
 
