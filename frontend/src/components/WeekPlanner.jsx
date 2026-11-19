@@ -654,6 +654,8 @@ function WeekPlanner() {
   const moveButtons = useRef({});
   const focusMoveFor = useRef(null);
   const focusAfter = useRef(null); // { mealId, selectors } resolved after the next plan render
+  const weekToggleRef = useRef(null);
+  const focusWeekToggle = useRef(false); // set by switchWeek, resolved once the button is re-enabled
   const [visibleSlotIds, setVisibleSlotIds] = useState(loadVisibleSlots);
   const [dragMealId, setDragMealId] = useState(null);
   const [dropKey, setDropKey] = useState(null);
@@ -702,6 +704,14 @@ function WeekPlanner() {
       if (document.activeElement === element) return;
     }
   }, [weekPlan]);
+
+  // The toggle is disabled while a week loads (and Retry unmounts on success), so focus would fall
+  // to BODY. Return it to the toggle once loading has finished and the button is enabled again.
+  useEffect(() => {
+    if (switching || !focusWeekToggle.current) return;
+    focusWeekToggle.current = false;
+    weekToggleRef.current?.focus();
+  }, [switching]);
 
   const afterActionTargets = schedule => [
     ...(schedule.day_id != null ? [`[data-add="${schedule.day_id}-${schedule.slot}"]`, `#day-${schedule.day_id}`] : []),
@@ -886,6 +896,7 @@ function WeekPlanner() {
     setError('');
     setSwitchError(null);
     setSwitching(true);
+    focusWeekToggle.current = true;
     try {
       const current = await getCurrentWeekPlan();
       const plan = nextWeek ? current : await getCurrentWeekPlan(nextWeekStart(current));
@@ -1033,6 +1044,7 @@ function WeekPlanner() {
           <p className="planner__range">{monthDay(weekPlan.start_date)} – {monthDay(weekPlan.end_date)}</p>
         </div>
         <Button
+          ref={weekToggleRef}
           variant="secondary"
           onClick={switchWeek}
           loading={switching}
