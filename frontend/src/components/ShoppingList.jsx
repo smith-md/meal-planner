@@ -20,6 +20,8 @@ import Button from './ui/Button.jsx';
 import { EmptyState, ErrorState, Skeleton } from './ui/States.jsx';
 import StatusPill from './ui/StatusPill.jsx';
 import { useToast } from './ui/Toast.jsx';
+import UndoHint from './ui/UndoHint.jsx';
+import { UNDO_ARIA_KEYSHORTCUTS, useUndoShortcut } from './ui/useUndoShortcut.js';
 import PutAwayPanel from './PutAwayPanel.jsx';
 import { QUANTITY_ERROR, abbreviateAmount, abbreviateQuantity, checkQuantityText, composeAmount, splitAmount } from '../utils/format';
 import { AlertIcon, CheckIcon, CloseIcon, PlusIcon } from './ui/icons.jsx';
@@ -398,7 +400,9 @@ function ShoppingList({ onOpenPlanner }) {
     }
     const active = document.activeElement;
     const free = !active || active === document.body || active.disabled
-      || (active.closest && active.closest('.ui-toast-region'));
+      || (active.closest && active.closest('.ui-toast-region'))
+      // Fallback headings that this component focuses itself are not a deliberate user choice.
+      || active === summaryRef.current || active === toBuyHeadingRef.current;
     if (!free) {
       pendingFocus.current = null; // the user moved focus somewhere on purpose
       return;
@@ -756,13 +760,18 @@ function ShoppingList({ onOpenPlanner }) {
     const { payload } = undo;
     setUndo(null);
     try {
-      setEntries(await undoGroceryChanges(payload));
+      const restored = await undoGroceryChanges(payload);
+      // The Undo button (or the removed row's controls) is gone: put focus on the restored row.
+      focusReverted(payload.removed || []);
+      setEntries(restored);
       refreshAfterChange(selectedWeek && selectedWeek.id);
       setFlash('Undone.');
     } catch (err) {
       setFlash(`${err.message} Nothing was changed.`);
     }
   };
+
+  useUndoShortcut(Boolean(undo), undoLast);
 
   const openReview = () => {
     if (!recon.data || reviewOpen) return;
@@ -1386,7 +1395,10 @@ function ShoppingList({ onOpenPlanner }) {
       {undo && (
         <div className="shopping-list__undo" role="status" aria-live="polite">
           <span className="shopping-list__undo-message">{undo.message}</span>
-          <Button variant="quiet" onClick={undoLast}>Undo</Button>
+          <Button variant="quiet" aria-keyshortcuts={UNDO_ARIA_KEYSHORTCUTS} onClick={undoLast}>
+            Undo
+            <UndoHint />
+          </Button>
           <Button variant="icon" aria-label="Dismiss" onClick={() => setUndo(null)}>
             <CloseIcon />
           </Button>
