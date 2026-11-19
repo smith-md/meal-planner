@@ -774,21 +774,32 @@
   }
 }
 
-/* Phones/tablets: stack the undo bar above the sticky Put away bar instead of covering it.
-   Offset = the bar's own bottom offset + its height + a gap. Height is derived from
-   PutAwayPanel.css: 44px button + 2 * var(--space-2) padding + 2px border. */
+/* Stack the undo bar above the Put away bar instead of covering it, at every width.
+   ShoppingList.jsx measures how far the bar reaches up from the viewport bottom (its real top edge,
+   so a wrapped label and the bar resting in flow above its sticky line are both covered) and sets it
+   as --put-away-bar-clearance on .shopping-list. The undo bar sits at its default offset or one gap
+   above that clearance, whichever is higher. The 0px fallback keeps the default when the variable is
+   unset (no measurement yet). While the panel is open the bar is static, so the default applies. */
 @media (max-width: 1023.98px) {
   .put-away-bar:not(.put-away-bar--open) ~ .shopping-list__undo {
-    bottom: calc(
-      var(--nav-height) + var(--space-2) + env(safe-area-inset-bottom, 0px) +
-        (44px + 2 * var(--space-2) + 2px) + var(--space-2)
+    bottom: max(
+      calc(var(--nav-height) + var(--space-2) + env(safe-area-inset-bottom, 0px)),
+      calc(var(--put-away-bar-clearance, 0px) + var(--space-2))
     );
   }
 }
 
+/* From 1024px the side rail leaves the bottom free, so the base offset is just the page gap. */
 @media (min-width: 1024px) {
   .shopping-list__undo {
-    bottom: var(--space-3);
+    bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .put-away-bar:not(.put-away-bar--open) ~ .shopping-list__undo {
+    bottom: max(
+      calc(var(--space-3) + env(safe-area-inset-bottom, 0px)),
+      calc(var(--put-away-bar-clearance, 0px) + var(--space-2))
+    );
   }
 }
 
