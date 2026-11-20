@@ -18,7 +18,7 @@ A personal web application for weekly meal planning, shared grocery list managem
 - FastAPI
 - SQLAlchemy
 - SQLite
-- Python 3.8+
+- Python 3.10 to 3.14
 
 **Frontend:**
 - React 18
@@ -29,7 +29,7 @@ A personal web application for weekly meal planning, shared grocery list managem
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.10 to 3.14
 - Node.js 22.13 or newer (odd-numbered releases 23 and 25 are not supported)
 - npm
 
