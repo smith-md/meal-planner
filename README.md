@@ -36,28 +36,48 @@ A personal web application for weekly meal planning, shared grocery list managem
 ### Backend Setup
 
 1. Navigate to the backend directory:
-   
 
-2. Install dependencies:
-   
+   ```
+   cd backend
+   ```
+
+2. Create and activate a virtual environment, then install dependencies:
+
+   ```
+   python -m venv venv
+   venv\Scripts\activate        # macOS/Linux: source venv/bin/activate
+   pip install -r requirements.txt
+   ```
 
 3. Run the server:
-   
 
-The API will be available at 
+   ```
+   uvicorn app.main:app --reload
+   ```
+
+The API will be available at http://127.0.0.1:8000 (the frontend calls http://localhost:8000).
 
 ### Frontend Setup
 
 1. Navigate to the frontend directory:
-   
+
+   ```
+   cd frontend
+   ```
 
 2. Install dependencies:
-   
+
+   ```
+   npm install
+   ```
 
 3. Run the development server:
-   
 
-The app will be available at 
+   ```
+   npm run dev
+   ```
+
+The app will be available at http://localhost:5173
 
 To run the front-end tests (Vitest, React Testing Library and jsdom), run `npm test` in the `frontend` directory. It runs the whole suite once and exits (no watch mode). The test tools need Node.js 22.13 or newer (see Prerequisites).
 
