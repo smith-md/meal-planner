@@ -27,21 +27,30 @@ mealplanner-backend/
     models.py
     schemas.py
     crud.py
+    pairings.py
+    inventory.py
+    grocery.py
+    reconcile.py
+    stock_suggestions.py
     deps.py
-    routers/
+    routers/        (not included by main.py)
       __init__.py
       meals.py
       week_plans.py
 ```
 
-- `database.py` – SQLAlchemy engine, session, and Base
-- `models.py` – SQLAlchemy models (Item, Meal, MealIngredient, WeekPlan, WeekDay, WeekDayMeal)
+- `main.py` – App entrypoint: loads `.env`, creates the tables and runs `ensure_columns`, sets up CORS, and declares every served route directly with `@app.get`/`@app.post`/etc. (including the recipe import endpoints). It does not call `include_router`
+- `database.py` – SQLAlchemy engine, session, Base, the `get_db` dependency used by `main.py`, and `ensure_columns` for adding columns to older databases
+- `models.py` – SQLAlchemy models (Meal, WeekPlan, Day, WeekMeal, LeftoverReservation, PairingIngredient, InventoryItem, PackageSize, InventoryPurchase, InventoryConsumption, GroceryEntry)
 - `schemas.py` – Pydantic schemas for request/response validation
-- `crud.py` – Basic helper functions for DB operations
-- `deps.py` – FastAPI dependency for DB session
-- `routers/meals.py` – Endpoints for items and meals
-- `routers/week_plans.py` – Endpoints for weekly planning (days, need_meal toggle, attach/remove meals)
-- `main.py` – App entrypoint, CORS config, router registration
+- `crud.py` – Helper functions for DB operations on meals and week plans (days, planned meals, leftover reservations), plus ingredient-line parsing and aggregation for the shopping list
+- `pairings.py` – Ingredient parsing and units, quantity scaling, pairing suggestions, and the shopping list
+- `inventory.py` – Fridge/pantry stock, purchases, staples and minimums, package sizes, availability and reservations, and cooking a planned meal
+- `grocery.py` – Server-side grocery entries (create, update, delete, import, undo)
+- `reconcile.py` – Per-week reconcile of planned demand against stock and the grocery list (preview and apply)
+- `stock_suggestions.py` – Ranks saved meals by how much of the available stock they use
+- `deps.py` – A FastAPI `get_db` dependency; used only by the `routers/` files (`main.py` uses the one in `database.py`)
+- `routers/meals.py` and `routers/week_plans.py` – Router modules that are present but not included by `main.py`, so they serve no endpoints. They are stale and not part of the running API; the served routes are the ones declared in `main.py`
 
 ---
 
