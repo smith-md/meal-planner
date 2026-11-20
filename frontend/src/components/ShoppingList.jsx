@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import {
   getCurrentWeekPlan,
   getInventory,
@@ -28,6 +28,10 @@ import { AlertIcon, CheckIcon, CloseIcon, PlusIcon } from './ui/icons.jsx';
 import './ShoppingList.css';
 
 const HAS_QUANTITY = /^\s*[\d½¼¾⅓⅔⅛]/;
+
+// CSS custom property (on the .shopping-list root) holding how far the Put away bar reaches up
+// from the viewport bottom; the undo bar's bottom offset in ShoppingList.css reads it.
+const PUT_AWAY_CLEARANCE_VAR = '--put-away-bar-clearance';
 
 function newId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
@@ -324,6 +328,8 @@ function ShoppingList({ onOpenPlanner }) {
   const [panelBusy, setPanelBusy] = useState(false);
   const [creditEdit, setCreditEdit] = useState(null); // { id, amount }
   const putAwayTrigger = useRef(null);
+  const putAwayBarRef = useRef(null);
+  const shopRootRef = useRef(null);
   const summaryRef = useRef(null); // the Bought heading
   const toBuyHeadingRef = useRef(null);
   const checkRefs = useRef({}); // entry id -> its checkbox
@@ -905,6 +911,52 @@ function ShoppingList({ onOpenPlanner }) {
   // running is not settled (its credit may be about to land), so it is not counted yet.
   const pending = purchased.filter(entry => !entry.credit && !kept.has(entry.id) && entry.id !== busyId);
   const working = busyId !== null || panelBusy;
+
+  // The undo bar stacks above the Put away bar, so it needs that bar's real top edge. The bar is
+  // sticky but not always stuck: scrolled to the end it rests in normal flow above its sticky line
+  // (the list's bottom padding, larger while the undo bar shows, lifts it), so neither its height nor
+  // an assumed sticky line is enough. Clearance = how far the bar reaches up from the viewport bottom.
+  // It is written straight to the root's style (no state), so scrolling never re-renders.
+  // While the panel is open the bar is static and the undo bar keeps its default place, so it is unset.
+  const putAwayBarShown = pending.length > 0 && !putAwayOpen;
+  const hasUndo = undo !== null;
+  useLayoutEffect(() => {
+    const root = shopRootRef.current;
+    const bar = putAwayBarRef.current;
+    if (!root) return undefined;
+    if (!putAwayBarShown || !bar) {
+      root.style.removeProperty(PUT_AWAY_CLEARANCE_VAR);
+      return undefined;
+    }
+    const measure = () => {
+      const clearance = Math.max(0, Math.round(window.innerHeight - bar.getBoundingClientRect().top));
+      root.style.setProperty(PUT_AWAY_CLEARANCE_VAR, `${clearance}px`);
+    };
+    let frame = 0;
+    const schedule = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        measure();
+      });
+    };
+    measure(); // re-runs when the undo bar or pending count changes (the padding moves the bar)
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    // jsdom and old browsers have no ResizeObserver: scroll/resize/layout-change measuring still applies.
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    if (observer) {
+      observer.observe(bar);
+      observer.observe(root);
+    }
+    return () => {
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+      if (observer) observer.disconnect();
+      if (frame) window.cancelAnimationFrame(frame);
+      root.style.removeProperty(PUT_AWAY_CLEARANCE_VAR);
+    };
+  }, [putAwayBarShown, hasUndo, pending.length]);
   const data = recon.data;
   const changeCount = data ? data.changes.add.length + data.changes.update.length + data.changes.remove.length : 0;
   const warningCount = data
@@ -1304,6 +1356,7 @@ function ShoppingList({ onOpenPlanner }) {
         undo ? 'shopping-list--has-undo' : '',
         pending.length > 0 ? 'shopping-list--has-put-away' : ''
       ].filter(Boolean).join(' ')}
+      ref={shopRootRef}
     >
       {migration.status === 'failed' && (
         <div className="shopping-list__banner" role="alert">
@@ -1417,7 +1470,7 @@ function ShoppingList({ onOpenPlanner }) {
       {addError && <InlineError id="shopping-add-error">{addError}</InlineError>}
 
       {pending.length > 0 && (
-        <div className={putAwayOpen ? 'put-away-bar put-away-bar--open' : 'put-away-bar'}>
+        <div ref={putAwayBarRef} className={putAwayOpen ? 'put-away-bar put-away-bar--open' : 'put-away-bar'}>
           <Button
             ref={putAwayTrigger}
             onClick={() => setPutAwayOpen(open => !open)}
