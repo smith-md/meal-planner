@@ -22,7 +22,7 @@ Frontend (http://localhost:5173):
 cd frontend; npm install; npm run dev
 ```
 
-The backend command is inferred from `backend/requirements.txt` and `backend/app/main.py`; it was **not verified by running it** (the README run-command blocks are blank in the repo). The frontend calls `http://localhost:8000` (`frontend/src/api.js:1`), so the backend must be running. CORS allows localhost:5173 and 5174 (`backend/app/main.py:22-30`).
+The backend command is the one documented in the README Backend Setup section (`uvicorn app.main:app --reload`, run from `backend/` after `pip install -r requirements.txt`). The frontend calls `http://localhost:8000` (`frontend/src/api.js:1`), so the backend must be running. CORS allows localhost:5173 and 5174 (`backend/app/main.py:22-30`).
 
 ### Recommended screen reader and browser
 
