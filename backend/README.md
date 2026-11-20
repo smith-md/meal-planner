@@ -8,9 +8,8 @@ It supports:
 - Meals and meal ingredients
 - Weekly plans
   - 7 days starting from the week's Monday
-  - `need_meal` toggle per day
+  - A per-day `state` (`need` or `none`)
   - Attach meals to specific days
-- A `summary` of how many nights need meals vs how many are planned
 
 You can use this as the backend for a React frontend that shows a week view
 and lets you click whether you need to plan a meal for each night.
@@ -87,22 +86,7 @@ The API will be available at:
 ### Health check
 
 - `GET /`  
-  Returns `{ "status": "ok" }`.
-
-### Items
-
-- `GET /meals/items` – list all items
-- `POST /meals/items` – create a new item
-
-Example `POST /meals/items` body:
-
-```json
-{
-  "name": "Chicken breast",
-  "category": "Meat",
-  "unit": "lb"
-}
-```
+  Returns `{ "message": "Meal Planner API" }`.
 
 ### Meals
 
@@ -178,27 +162,23 @@ Example changing several fields at once:
 
 Response contains:
 
-- `days` – each day has:
-  - `id`, `date`, `need_meal`, `notes`, `meals`
-- `summary` – object with:
-  - `nights_needing_meals`
-  - `nights_planned`
-  - `nights_missing`
+- `id`, `start_date`, `end_date`
+- `days` – each day has `id`, `week_plan_id`, `date`, `day_name`, `state`
+- `meals`, `meal_servings`, `meal_schedule`, `leftovers`
 
-#### Toggle need_meal
+#### Update a day's state
 
 - `PATCH /week-plans/days/{day_id}`
+
+The only field is `state`: `"need"` (the default; the day needs a meal) or `"none"` (no meal needed). An omitted or empty `state` leaves the day unchanged. 404 if the day does not exist.
 
 Example body:
 
 ```json
-{
-  "need_meal": false,
-  "notes": "Dinner with friends"
-}
+{ "state": "none" }
 ```
 
-Returns the updated `WeekPlanRead` with recalculated summary.
+Returns the updated day: `id`, `week_plan_id`, `date`, `day_name`, `state`.
 
 #### Add a meal to a week
 
@@ -416,5 +396,4 @@ From here you can:
 - Build a React frontend that:
   - Calls `GET /week-plans/current`
   - Renders a 7-day card layout
-  - Lets you toggle `need_meal` and attach meals per day
-  - Shows `nights_needing_meals`, `nights_planned`, and `nights_missing` at the top.
+  - Lets you set each day's `state` (`need` or `none`) and attach meals per day
