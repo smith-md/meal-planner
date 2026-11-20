@@ -83,12 +83,12 @@ To run the front-end tests (Vitest, React Testing Library and jsdom), run `npm t
 
 ## API Endpoints
 
--  - Get all meals (optional search parameter)
--  - Create a new meal
--  - Get current week plan
--  - Update day state
--  - Add meal to day
--  - Remove meal from day
+- `GET /meals` – Get all meals (optional search parameter)
+- `POST /meals` – Create a new meal
+- `GET /week-plans/current` – Get current week plan
+- `PATCH /week-plans/days/{day_id}` – Update day state
+- `POST /week-plans/{week_plan_id}/meals` – Add a meal to a week plan
+- `DELETE /week-plans/{week_plan_id}/meals/{meal_id}` – Remove a meal from a week plan
 
 ### Prep time, cook time, and make-ahead
 
