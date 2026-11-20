@@ -30,7 +30,7 @@ A personal web application for weekly meal planning, shared grocery list managem
 ### Prerequisites
 
 - Python 3.8+
-- Node.js 16+
+- Node.js 22.13 or newer (odd-numbered releases 23 and 25 are not supported)
 - npm
 
 ### Backend Setup
@@ -59,7 +59,7 @@ The API will be available at
 
 The app will be available at 
 
-To run the front-end tests (Vitest, React Testing Library and jsdom), run `npm test` in the `frontend` directory. It runs the whole suite once and exits (no watch mode). The test tools need Node.js 22.12 or newer.
+To run the front-end tests (Vitest, React Testing Library and jsdom), run `npm test` in the `frontend` directory. It runs the whole suite once and exits (no watch mode). The test tools need Node.js 22.13 or newer (see Prerequisites).
 
 ## API Endpoints
 
